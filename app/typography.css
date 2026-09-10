@@ -1,0 +1,119 @@
+/* Alastre readability layer: Poppins preserved, usable sizing in both themes. */
+html { font-size: 16px; }
+body { font-size: 1rem; line-height: 1.55; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+
+.nav-item,
+.settings-link,
+.theme-trigger,
+.mobile-nav button { font-size: .9rem; line-height: 1.35; }
+
+.nav-label,
+.section-kicker,
+.signal-kicker,
+.eyebrow,
+.environment-pill { font-size: .75rem; line-height: 1.4; }
+
+.brand-copy span,
+.user-chip small,
+.security-line span,
+.updated-at,
+.workspace-footer,
+.signal-card small,
+.signal-status,
+.integration-item span,
+.foundation-row span,
+.pilot-content p,
+.module-title p,
+.client-card>p,
+.source-row small,
+.chat-head span,
+.composer-help,
+.agent-mode span,
+.agent-selector button span,
+.diagnosis-score small,
+.dna-decision small,
+.audit-row small,
+.tracking-hero p,
+.tracking-health span,
+.tracking-notice,
+.tracking-metrics span,
+.tracking-metrics small,
+.tracking-row small,
+.tracking-approval-state,
+.tracking-actions>div { font-size: .75rem; line-height: 1.5; }
+
+.security-line strong,
+.signal-label,
+.foundation-row strong,
+.integration-item strong,
+.pilot-button,
+.module-title select,
+.onboarding-grid label,
+.form-error,
+.client-meta span,
+.empty-state,
+.import-heading strong,
+.import-heading small,
+.import-box textarea,
+.preview-content>div:first-child>strong,
+.preview-content>div:first-child>span,
+.preview-facts span,
+.preview-content p,
+.review-label small,
+.dna-hero p,
+.dna-score small,
+.data-list dt,
+.data-list dd,
+.source-row strong,
+.agent-mode strong,
+.chat-head strong,
+.message p,
+.quick-prompts button,
+.composer textarea,
+.agent-context li,
+.context-flow,
+.agent-selector button,
+.diagnosis-score span,
+.seo-diagnosis li,
+.dna-decision strong,
+.cost-policy p,
+.audit-row strong,
+.chat-head>button,
+.tracking-form label,
+.tracking-form input,
+.tracking-form select,
+.tracking-metrics strong,
+.tracking-row strong,
+.queue-item strong,
+.queue-item span,
+.detail-grid span,
+.detail-grid strong,
+.detail-block,
+.decision-note strong,
+.decision-note span { font-size: .875rem; line-height: 1.5; }
+
+.intro-row p { font-size: 1rem; }
+.panel-heading h2 { font-size: 1.125rem; line-height: 1.35; }
+.module-title h1,
+.intro-row h1 { line-height: 1.15; }
+.tracking-actions strong { font-size: .8rem; line-height: 1.4; }
+
+.dark {
+  --content-secondary: #d4d4db;
+  --content-muted: #aaaab5;
+  --muted-foreground: #b1b1bc;
+}
+
+@media (max-width: 820px) {
+  .nav-item,
+  .settings-link,
+  .theme-trigger,
+  .mobile-nav button { font-size: .875rem; }
+  .content-wrap { padding-inline: 1rem; }
+}
+
+@media (max-width: 560px) {
+  html { font-size: 15px; }
+  .tracking-actions { padding-left: 0; }
+  .tracking-actions>div { align-items: flex-start; flex-direction: column; gap: .2rem; }
+}
