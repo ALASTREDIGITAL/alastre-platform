@@ -77,3 +77,18 @@ Trabalho visual permanece local durante a iteração. Commit, push e deploy ocor
 **Status:** aceita; migration local pendente de aplicação autorizada.
 
 Postagens, avaliações e oportunidades são registros operacionais persistentes vinculados a `agency_id` e `client_id`. Estados representam preparação, revisão, aprovação e execução como etapas diferentes. A Central de Aprovações existente recebe novas origens de SEO Local; aprovação nunca implica publicação automática. Dados operacionais não usam `localStorage` como fonte permanente.
+## AD-014 — Integrações externas pertencem ao Connection Hub
+
+Integrações externas são acessadas por meio do Connection Hub. Módulos funcionais não possuem credenciais OAuth. SEO Local, Google Ads e Tracking devem consumir progressivamente uma abstração equivalente a `getClientConnection(client_id, capability)`. Connections pertencem ao tenant; recursos descobertos são entidades próprias e só se tornam parte da operação de um cliente por um binding validado no servidor. Credenciais são referências server-side, nunca campos públicos, respostas, logs ou auditoria.
+
+## AD-015 — Modo Simples como experiência SaaS padrão
+
+O Modo Simples é a experiência SaaS padrão. Detalhes técnicos de integração ficam ocultos de usuários comuns. O modo avançado pode apresentar IDs, capabilities, health, sincronização e erros sanitizados, mas jamais tokens, chaves ou segredos. Entitlements serão aplicados por capability, sem acoplamento rígido a nomes de planos.
+
+## AD-016 — Isolamento e autorização de conexões
+
+Toda connection, capability, resource, authorization session e binding carrega `agency_id`. FKs compostas impedem bindings entre tenants; tabelas ficam inacessíveis a `anon` e `authenticated` e são operadas pela camada server-side, que deverá resolver usuário, organização e papel antes de cada ação. O estado OAuth será armazenado somente como hash com expiração. Eventos de auditoria registram o ciclo de vida, nunca credenciais.
+
+## AD-017 — Google provider, Vault e consentimento incremental
+
+Google é um provider único com capabilities independentes. A primeira autorização solicita somente `business.manage` para Google Business Profile; Google Ads, Analytics e Tag Manager exigirão consentimento incremental. Tokens são armazenados pelo `CredentialStore` no Supabase Vault e entidades públicas conservam apenas a referência. O adapter é server-side, paginado e read-only nesta fase. Dados Google não sobrescrevem o DNA: são uma fonte de verdade apenas para os campos do recurso externo.

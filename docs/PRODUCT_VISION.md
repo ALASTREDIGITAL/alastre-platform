@@ -76,3 +76,6 @@ Agentes são uma camada transversal. Agentes de SEO Local, Conteúdo, Avaliaçõ
 ## Experiência
 
 A home deve ser a Central de Operações da Agência, destacando clientes, saúde, SEO Local, tarefas, alertas, avaliações pendentes, postagens, oportunidades, campanhas, tracking, aprovações e resultados. A interface deve evitar linguagem técnica desnecessária e oferecer ajuda contextual quando ela reduzir dúvidas operacionais.
+## Connection Hub e experiência SaaS
+
+A plataforma terá uma porta única e simples para integrações externas. O usuário autoriza o provedor, escolhe os recursos encontrados e os vincula ao cliente correto; não precisa conhecer APIs, tokens ou escopos. O Modo Simples é a experiência SaaS padrão e esconde detalhes técnicos de usuários comuns. Google será o primeiro provedor real, seguido de Meta e outros conectores, sem acoplar o produto a um único fornecedor.

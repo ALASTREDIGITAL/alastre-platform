@@ -71,3 +71,18 @@ O roadmap prioriza primeiro uma operação interna utilizável e, em seguida, o 
 - Automação segura de rotinas recorrentes.
 - Alertas, filas e agentes coordenados.
 - Evolução da plataforma para possível oferta SaaS.
+## Marco D — Connection Hub (fundação local)
+
+- [x] Catálogo de providers e capabilities, estados humanos e health conceitual.
+- [x] Experiência Configurações → Conexões, modos simples/avançado e onboarding de organização/cliente.
+- [x] Contratos internos, modelo multi-tenant e migration local não aplicada.
+- [ ] OAuth Google real, cofre de credenciais, discovery, seleção e binding persistido.
+- [ ] Adaptação progressiva de SEO Local, Ads e Tracking para consumir conexões válidas do Hub.
+
+### Marco D.1 — Google Business Profile
+
+- [x] OAuth server-side com state, PKCE, consentimento mínimo e callback seguro.
+- [x] Adapter Google read-only para Accounts e Locations, paginação, refresh e health.
+- [x] Supabase Vault como credential store e resource binding com validação de tenant.
+- [x] SEO Local consulta o Connection Hub por cliente e capability.
+- [ ] Aplicar a migration local e configurar as credenciais OAuth administrativas para realizar a primeira conexão real.

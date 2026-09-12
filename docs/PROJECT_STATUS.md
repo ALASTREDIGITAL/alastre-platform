@@ -64,3 +64,10 @@ Este documento registra o estado conhecido, não substitui auditoria técnica qu
 - `alastre-google-ads-bridge` publicada e ativa na versão **30**.
 - Smoke autenticado e geração real por IA permanecem bloqueados localmente porque `SUPABASE_GOOGLE_ADS_BRIDGE_URL` e `ALASTRE_BRIDGE_SECRET` estão vazios; nenhum segredo foi criado ou alterado.
 - Google Business Profile continua sem conexão e `ALASTRE_WRITE_MODE` permanece `disabled`.
+## Marco D — Connection Hub
+
+Fundação implementada localmente. A interface completa é navegável sem criar conexões falsas; Google, Meta e serviços futuros permanecem aguardando implementação real. IA Alastre aparece como serviço incluído. A migration `connection_hub_foundation` existe apenas no repositório local e não foi aplicada ao Supabase. Nenhum OAuth, acesso a provider, credencial, publicação, deploy ou push foi executado.
+
+## Marco D.1 — Google provider preparado
+
+OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, binding e consulta pelo SEO Local estão implementados localmente. O fluxo real permanece bloqueado de forma segura até a migration do Connection Hub ser aplicada e `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` e `GOOGLE_OAUTH_REDIRECT_URI` serem configurados no servidor. Nenhum token real foi recebido, nenhuma chamada ao Google foi executada e nenhuma migration remota foi aplicada.
