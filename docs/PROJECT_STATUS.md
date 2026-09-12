@@ -41,7 +41,7 @@ A Alastre Platform está sendo reposicionada de uma fundação centrada em Googl
 
 ## Foco corrente
 
-Revisar o Marco C.1 e, após aprovação explícita, aplicar a migration local e publicar a versão correspondente do bridge no ambiente correto. Até isso ocorrer, a interface apresenta indisponibilidade sem perder navegação.
+Configurar localmente a URL e o segredo já existentes do bridge de homologação para permitir o smoke autenticado dos endpoints e da geração por IA. Não criar nem rotacionar segredos nesta etapa.
 
 ## Marco C — base entregue localmente
 
@@ -49,7 +49,7 @@ Revisar o Marco C.1 e, após aprovação explícita, aplicar a migration local e
 - Fluxos de postagens, avaliações e oportunidades separados de publicação externa.
 - Agente SEO Local como especialização padrão, limitado ao DNA e aos dados realmente disponíveis.
 - Central de Aprovações preparada para fontes de SEO Local sem criar mecanismo paralelo.
-- Migration local nova modela postagens, avaliações e oportunidades com RLS e acesso restrito ao `service_role`; não foi aplicada.
+- Migrations `20260912185228_local_seo_operations` e `20260912185933_local_seo_security_hardening` aplicadas em **2026-09-12** na homologação.
 
 Este documento registra o estado conhecido, não substitui auditoria técnica quando uma tarefa depender de detalhes que possam ter mudado.
 
@@ -60,4 +60,7 @@ Este documento registra o estado conhecido, não substitui auditoria técnica qu
 - Respostas a avaliações são entidades próprias e aprovações reutilizam `approval_items`.
 - Bridge valida ator, agência e cliente e registra auditoria operacional.
 - UI de postagens salva rascunho e envia para aprovação quando backend e migration estiverem disponíveis.
-- Geração por IA permanece bloqueada até decisão explícita sobre quais dados operacionais podem ser enviados ao provedor.
+- Política mínima de dados para IA implementada no servidor, com allowlist testada, sanitização de contato pessoal e prompts versionados.
+- `alastre-google-ads-bridge` publicada e ativa na versão **30**.
+- Smoke autenticado e geração real por IA permanecem bloqueados localmente porque `SUPABASE_GOOGLE_ADS_BRIDGE_URL` e `ALASTRE_BRIDGE_SECRET` estão vazios; nenhum segredo foi criado ou alterado.
+- Google Business Profile continua sem conexão e `ALASTRE_WRITE_MODE` permanece `disabled`.

@@ -22,7 +22,7 @@ O roadmap prioriza primeiro uma operação interna utilizável e, em seguida, o 
 
 ## Marco C — Agente SEO Local
 
-**Estado:** Marco C.1 preparado localmente; migration, bridge e governança de dados para IA ainda aguardam ativação autorizada.
+**Estado:** Marco C.1 aplicado na homologação; bridge v30 e política mínima de IA entregues. Smoke autenticado aguarda configuração local do bridge, e o Google Business Profile permanece desconectado.
 
 - Recomendações priorizadas.
 - Geração assistida de postagens.
