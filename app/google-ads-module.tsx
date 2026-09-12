@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft, Bot, Check, CheckCircle2, CircleDollarSign, Clock3, Gauge,
   MapPin, Search, Send, ShieldCheck, Sparkles, Target, TrendingUp,
@@ -8,7 +8,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import type { ClientSummary } from "./clients-module";
+import { IntegrationState } from "@/components/platform-state";
+import { isArrayOf, isRecord, isRequestCancelled, isString, postGoogleAds, postPlatform } from "@/lib/platform-api";
+import { isClientSummaryArray, type ClientSummary } from "./clients-module";
 
 const defaultCities = ["Indaiatuba", "Salto", "Itu", "Porto Feliz"];
 const defaultKeywords = [
@@ -19,6 +21,8 @@ const defaultKeywords = [
   "dedetização de baratas",
   "controle de escorpião",
 ];
+const isApprovalSummary=(value:unknown):value is {status:string}=>isRecord(value)&&isString(value.status);
+const isApprovalList=isArrayOf(isApprovalSummary);
 
 export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId:string; onSelectClient:(id:string)=>void; onBack: () => void }) {
   const commandKey = useRef(crypto.randomUUID());
@@ -28,19 +32,17 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId
   const [selectedCities, setSelectedCities] = useState(defaultCities);
   const [approvalState, setApprovalState] = useState<"draft" | "saving" | "queued" | "error">("draft");
   const [savedApprovals, setSavedApprovals] = useState(0);
+  const [unavailable,setUnavailable]=useState(false);
+  const [loadingClients,setLoadingClients]=useState(true);
 
   useEffect(() => {
-    fetch("/api/google-ads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "list" }),
-    })
-      .then((response) => response.ok ? response.json() : [])
-      .then((items) => setSavedApprovals(Array.isArray(items) ? items.filter((item) => item.status === "pending").length : 0))
-      .catch(() => undefined);
+    const controller=new AbortController();
+    void postGoogleAds({action:"list"},isApprovalList,controller.signal).then(items=>{if(!controller.signal.aborted)setSavedApprovals(items.filter(item=>item.status==="pending").length)}).catch(error=>{if(!isRequestCancelled(error))setUnavailable(true)});
+    return()=>{controller.abort()};
   }, []);
 
-  useEffect(()=>{void fetch("/api/platform",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"clients"})}).then(r=>r.ok?r.json():[]).then((items:ClientSummary[])=>{setClients(items);const client=items.find(item=>item.id===clientId);const data=client?.dna?.business_data??{};const values=Array.isArray(data.cities)?data.cities.map(String).filter(Boolean):data.city?[String(data.city)]:[];setSelectedCities(values.length?values:clientId==="b10a1a00-0000-4000-8000-000000000001"?defaultCities:[])})},[clientId]);
+  const loadClients=useCallback(async(signal?:AbortSignal)=>{setLoadingClients(true);setUnavailable(false);try{const items=await postPlatform({action:"clients"},isClientSummaryArray,signal);if(signal?.aborted)return;setClients(items);const client=items.find(item=>item.id===clientId);const data=client?.dna?.business_data??{};const values=Array.isArray(data.cities)?data.cities.map(String).filter(Boolean):data.city?[String(data.city)]:[];setSelectedCities(values.length?values:clientId==="b10a1a00-0000-4000-8000-000000000001"?defaultCities:[])}catch(error){if(isRequestCancelled(error))return;setClients([]);setUnavailable(true)}finally{if(!signal?.aborted)setLoadingClients(false)}},[clientId]);
+  useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>void loadClients(controller.signal),0);return()=>{window.clearTimeout(timer);controller.abort()}},[loadClients]);
   const activeClient=clients.find(client=>client.id===clientId);
   const business=activeClient?.dna?.business_data??{};
   const clientName=activeClient?.name??"Cliente";
@@ -59,11 +61,10 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId
   }
 
   async function submitForApproval() {
+    if(!activeClient){setApprovalState("error");return}
     setApprovalState("saving");
-    const response = await fetch("/api/google-ads", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    try {
+      await postGoogleAds({
         action: "submit",
         client_id: clientId,
         idempotency_key: commandKey.current,
@@ -79,15 +80,11 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId
           search_partners: false,
           write_mode: "simulation",
         },
-      }),
-    });
-    if (!response.ok) {
-      setApprovalState("error");
-      return;
-    }
-    setSavedApprovals((value) => value + 1);
-    setApprovalState("queued");
-    commandKey.current = crypto.randomUUID();
+      },isRecord);
+      setSavedApprovals((value) => value + 1);
+      setApprovalState("queued");
+      commandKey.current = crypto.randomUUID();
+    } catch { setApprovalState("error"); setUnavailable(true); }
   }
 
   return (
@@ -99,8 +96,10 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId
           <h1>Operação {clientName}</h1>
           <p>Analise a oportunidade e monte campanhas com o DNA comercial do cliente aplicado automaticamente.</p>
         </div>
-        <div className="ads-title-actions"><select aria-label="Cliente da operação" value={clientId} onChange={event=>onSelectClient(event.target.value)}>{clients.map(client=><option key={client.id} value={client.id}>{client.name}</option>)}</select><div className="ads-mode"><ShieldCheck /><div><strong>Modo simulação</strong><span>Nenhuma alteração será publicada</span></div></div></div>
+        <div className="ads-title-actions"><select aria-label="Cliente da operação" value={activeClient?clientId:""} onChange={event=>onSelectClient(event.target.value)} disabled={clients.length===0}>{clients.length?<>{clients.map(client=><option key={client.id} value={client.id}>{client.name}</option>)}</>:<option value="">Nenhum cliente disponível</option>}</select><div className="ads-mode"><ShieldCheck /><div><strong>Modo simulação</strong><span>Nenhuma alteração será publicada</span></div></div></div>
       </div>
+
+      {unavailable?<IntegrationState compact message="A operação continua disponível para revisão visual, mas dados reais e aprovações aguardam a conexão deste ambiente." onRetry={()=>void loadClients()}/>:loadingClients?<div className="empty-state">Carregando operação...</div>:null}
 
       <section className="ads-metrics" aria-label="Resumo Google Ads">
         <article><span className="metric-icon purple"><Gauge /></span><div><small>SAÚDE DA CONTA</small><strong>87<span>/100</span></strong><em>Boa estrutura</em></div></article>
@@ -182,7 +181,7 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId
               <div><dt>Conversão</dt><dd>Formulário</dd></div>
             </dl>
             <div className="safety-note"><ShieldCheck /><span>A campanha ficará em rascunho. Nenhum anúncio ou orçamento será ativado.</span></div>
-            <Button className="approval-button" disabled={approvalState === "queued" || approvalState === "saving" || selectedCities.length === 0} onClick={submitForApproval}>
+            <Button className="approval-button" disabled={approvalState === "queued" || approvalState === "saving" || selectedCities.length === 0 || !activeClient || unavailable} onClick={submitForApproval}>
               {approvalState === "queued" ? <><CheckCircle2 /> Salva no Supabase</> : approvalState === "saving" ? <><Clock3 /> Salvando...</> : <><Send /> Enviar para aprovação</>}
             </Button>
             {approvalState === "queued" && <p className="approval-success">Rascunho persistido com sucesso. Você pode fechar a página sem perder esta aprovação.</p>}
