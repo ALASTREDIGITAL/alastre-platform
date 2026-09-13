@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowRight,
   Building2,
   CalendarDays,
   Compass,
@@ -13,13 +14,13 @@ import {
   Star,
   Store,
   Target,
+  Unplug,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { IntegrationState } from "@/components/platform-state";
 import { LocalScore } from "@/components/local-score";
 import {
-  DailySeoQueue,
   OpportunityOperations,
   PostOperations,
   ReviewOperations,
@@ -365,41 +366,6 @@ export function LocalSeoModule({
         </div>
       </section>
     ) : null;
-  const offline =
-    section === "overview" ? (
-      <>
-        <IntegrationState
-          compact
-          message="A persistência interna não está disponível neste ambiente. A central continua navegável sem criar dados falsos."
-          onRetry={() => void load()}
-        />
-        <DailySeoQueue />
-      </>
-    ) : section === "profile" ? (
-      <EmptyArea
-        icon={Store}
-        title="Auditoria aguardando um cliente"
-        description="As verificações serão avaliadas sem criar resultados fictícios."
-      />
-    ) : section === "score" ? (
-      <EmptyArea
-        icon={Target}
-        title="Local Score aguardando evidências"
-        description="Nenhuma pontuação será inventada sem dados confiáveis."
-      />
-    ) : section === "reviews" ? (
-      <ReviewOperations />
-    ) : section === "posts" ? (
-      <PostOperations canCreate={false} />
-    ) : section === "keywords" ? (
-      <KeywordsWorkspace clientId="" rows={[]} />
-    ) : section === "competitors" ? (
-      <CompetitorsWorkspace clientId="" rows={[]} />
-    ) : section === "opportunities" ? (
-      <OpportunityOperations />
-    ) : (
-      <HistoryWorkspace />
-    );
   return (
     <div className="local-seo-page">
       <PageHeader
@@ -432,8 +398,16 @@ export function LocalSeoModule({
           </label>
         }
       />
-      <nav className="local-tabs" aria-label="Áreas de SEO Local">
-        {sections.map((item) => {
+      {unavailable ? (
+        <section className="seo-primary-state" aria-labelledby="seo-state-title">
+          <span className="seo-state-icon"><Unplug /></span>
+          <div><span className="section-kicker">STATUS PRINCIPAL</span><h2 id="seo-state-title">Google ainda não conectado</h2><p>Conecte uma fonte para acompanhar o perfil, as avaliações, a visibilidade e as oportunidades do cliente. Nenhum resultado será inventado enquanto os dados não estiverem disponíveis.</p></div>
+          <Button onClick={onOpenConnections}>Conectar Google <ArrowRight /></Button>
+          <button className="retry-link" type="button" onClick={() => void load()}>Tentar novamente</button>
+        </section>
+      ) : <>
+      <nav className="local-tabs local-tabs-primary" aria-label="Áreas de SEO Local">
+        {sections.filter((item) => ["overview", "profile", "reviews", "posts", "keywords", "competitors"].includes(item.id)).map((item) => {
           const Icon = item.icon;
           return (
             <button
@@ -472,9 +446,7 @@ export function LocalSeoModule({
         />
       )}
       {servicesPanel}
-      {unavailable ? (
-        offline
-      ) : loading ? (
+      {loading ? (
         <div className="empty-state">Carregando contexto do cliente...</div>
       ) : !workspace ? (
         <EmptyArea
@@ -565,6 +537,7 @@ export function LocalSeoModule({
       >
         <RefreshCw /> Atualizar contexto
       </Button>
+      </>}
     </div>
   );
 }

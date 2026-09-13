@@ -5,6 +5,16 @@ description: Projetar, revisar ou refinar interfaces e fluxos da Alastre Platfor
 
 # Alastre Product UX
 
+## Definição oficial do modo simples
+
+O modo simples mostra somente o que é necessário para a próxima decisão. Não é a mesma tela avançada com alguns campos escondidos. Ele reorganiza a informação para responder rapidamente: onde estou, como está, o que precisa de atenção e o que faço agora.
+
+- Use uma ação dominante quando houver um próximo passo claro.
+- Consolide ausência de dados em um único estado honesto e acionável.
+- Revele detalhes por progressive disclosure.
+- Mantenha IDs, capabilities, resources, bindings, metadados, versões e diagnósticos técnicos exclusivamente no modo avançado.
+- Ajuda contextual responde: o que é, por que importa e o que fazer.
+
 1. Leia `docs/PRODUCT_VISION.md` e preserve o design system existente.
 2. Comece pela tarefa e decisão que a pessoa precisa concluir, não pela estrutura técnica.
 3. Trate o Modo Simples como padrão. Aplique progressive disclosure: mostre primeiro o essencial e revele contexto ou detalhes avançados sob demanda.

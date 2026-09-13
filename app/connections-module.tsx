@@ -382,8 +382,8 @@ export function ConnectionsModule() {
     <div className="connections-page">
       <PageHeader
         eyebrow={<><Link2 /> CONFIGURAÇÕES · CONEXÕES</>}
-        title="Conecte. A Alastre cuida do restante."
-        description="Escolha a conta e a empresa. A configuração técnica fica sob responsabilidade da plataforma."
+        title="Conecte suas ferramentas"
+        description="Escolha o serviço. A Alastre orienta o próximo passo e cuida da configuração técnica."
         helpKey="connections.overview"
         actions={<div
           className="mode-switch"
@@ -405,6 +405,7 @@ export function ConnectionsModule() {
           </button>
         </div>}
       />
+      {mode === "advanced" && <>
       <section className="connection-health-strip">
         <span>
           <ShieldCheck />
@@ -448,6 +449,7 @@ export function ConnectionsModule() {
           ))}
         </div>
       </section>
+      </>}
       <section>
         <div className="connection-section-heading">
           <div>
@@ -465,7 +467,7 @@ export function ConnectionsModule() {
           </details>
         </div>
         <div className="connection-grid">
-          {providers.map((provider) => (
+          {providers.filter((provider) => mode === "advanced" || ["google", "meta", "alastre_ai"].includes(provider.key)).map((provider) => (
             <ProviderCard
               key={provider.key}
               provider={provider}

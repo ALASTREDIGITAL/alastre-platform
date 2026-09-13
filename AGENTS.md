@@ -32,6 +32,10 @@ Peça autorização somente antes de:
 - fazer deploy de produção;
 - tomar decisão de negócio ainda não documentada.
 
+## UX: definição oficial do modo simples
+
+O modo simples mostra somente o que é necessário para a próxima decisão. Ele não é a mesma tela técnica com campos ocultos: reorganiza a experiência em estado atual, atenção e uma ação dominante. IDs, capabilities, resources, bindings, metadados, versões e diagnósticos pertencem ao modo avançado.
+
 ## Segurança
 
 - Manter `ALASTRE_WRITE_MODE=disabled` até autorização explícita.

@@ -481,3 +481,71 @@ button:active:not(:disabled), [data-slot="button"]:active:not(:disabled) { trans
 @media (prefers-reduced-motion: reduce) {
   .sidebar-toggle-icons svg { transition-duration: .01ms !important; transform: none !important; }
 }
+
+/* UX V3 — simple mode shows only what is needed for the next decision. */
+:root {
+  --text-page: clamp(2.25rem, 2.7vw, 2.625rem);
+  --text-section: clamp(1.5rem, 1.8vw, 1.75rem);
+  --text-card: clamp(1.125rem, 1.3vw, 1.25rem);
+  --text-body: clamp(1rem, 1.05vw, 1.125rem);
+  --text-secondary: clamp(.9375rem, 1vw, 1rem);
+  --text-label: clamp(.875rem, .95vw, .9375rem);
+  --text-caption: .875rem;
+}
+
+.overview-simple { max-width: 1180px; }
+.overview-attention { display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:1.25rem;border:1px solid color-mix(in srgb,var(--brand) 25%,var(--line));border-radius:1rem;background:linear-gradient(115deg,var(--surface-1),color-mix(in srgb,var(--brand-soft) 55%,var(--surface-1)));padding:clamp(1.25rem,2.3vw,2rem);box-shadow:var(--shadow-sm); }
+.overview-attention-icon,.overview-row-icon,.seo-state-icon,.capability-icon { display:grid;place-items:center;width:48px;height:48px;flex:0 0 auto;border-radius:.8rem;background:var(--brand-soft);color:var(--brand); }
+.overview-attention h2,.overview-row h2,.seo-primary-state h2,.capability-list-simple h2 { margin:.25rem 0 .35rem;font-size:var(--text-section);letter-spacing:-.025em; }
+.overview-attention p,.overview-row p,.seo-primary-state p,.capability-list-simple p { margin:0;color:var(--content-secondary);font-size:var(--text-secondary);line-height:1.65; }
+.overview-sections { margin-top:1.25rem;border-top:1px solid var(--line); }
+.overview-row { display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:1.1rem;border-bottom:1px solid var(--line);padding:1.35rem .25rem; }
+.overview-row-icon { width:42px;height:42px;background:var(--surface-2);color:var(--content-secondary); }
+.quiet-status { border-radius:999px;background:var(--surface-2);color:var(--content-muted);padding:.45rem .7rem;font-size:var(--text-label);font-weight:650; }
+.disclosure-panel { margin-top:1.5rem;border-top:1px solid var(--line); }
+.disclosure-panel>summary { min-height:48px;display:flex;align-items:center;width:max-content;color:var(--content-secondary);font-size:var(--text-label);font-weight:700;cursor:pointer; }
+.disclosure-content { padding-top:1rem; }
+
+.connections-page>.page-header,.connections-page>section { max-width:1180px; }
+.connection-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+.connection-card { min-height:0;display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:1rem;padding:1.25rem; }
+.connection-card>.connection-card-copy p { display:none; }
+.connection-card>.connection-card-copy h2 { font-size:var(--text-card); }
+.connection-card>button { grid-column:1/-1;width:100%; }
+
+.seo-primary-state { display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:1.25rem;max-width:980px;border:1px solid color-mix(in srgb,var(--warning) 28%,var(--line));border-radius:1rem;background:var(--surface-1);padding:clamp(1.4rem,2.5vw,2.25rem);box-shadow:var(--shadow-xs); }
+.seo-primary-state .retry-link { grid-column:2;color:var(--content-secondary);min-height:auto;width:max-content;border:0;background:transparent;padding:.2rem 0;text-decoration:underline;text-underline-offset:3px; }
+.local-tabs-primary { max-width:980px; }
+
+.capability-list-simple { max-width:980px;border-top:1px solid var(--line); }
+.capability-list-simple>article { display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:1.1rem;border-bottom:1px solid var(--line);padding:1.25rem .25rem; }
+.capability-list-simple h2 { margin-top:0;font-size:var(--text-card); }
+.capability-list-simple .capability-icon { width:42px;height:42px;background:var(--surface-2);color:var(--content-secondary); }
+.simple-mode-note { display:flex;align-items:flex-start;gap:.8rem;margin-top:1.5rem;border-radius:.8rem;background:var(--surface-2);padding:1rem; }
+.simple-mode-note svg { flex:0 0 auto;width:20px;color:var(--success); }
+.simple-mode-note p { font-size:var(--text-label); }
+
+.connection-drawer-backdrop,.skill-drawer-backdrop { animation:v3-backdrop-in var(--duration-normal) var(--easing-enter) both; }
+.connection-drawer,.skill-drawer { animation:v3-drawer-in var(--duration-emphasis) var(--easing-enter) both; }
+.review-filters button,.mode-switch button,.view-switch button { transition:background-color var(--duration-fast) var(--easing-standard),color var(--duration-fast) var(--easing-standard),box-shadow var(--duration-fast) var(--easing-standard); }
+.overview-attention,.seo-primary-state { animation:v3-state-in var(--duration-emphasis) var(--easing-enter) both; }
+@keyframes v3-backdrop-in { from { opacity:0; } }
+@keyframes v3-drawer-in { from { opacity:0;transform:translateX(20px); } }
+@keyframes v3-state-in { from { opacity:0;transform:translateY(6px); } }
+
+@media (max-width:900px) {
+  .connection-grid { grid-template-columns:1fr; }
+  .overview-attention,.overview-row,.seo-primary-state,.capability-list-simple>article { grid-template-columns:auto minmax(0,1fr); }
+  .overview-attention>button,.overview-row>button,.overview-row>.quiet-status,.seo-primary-state>button:not(.retry-link),.capability-list-simple>article>button { grid-column:2;width:max-content; }
+  .seo-primary-state .retry-link { grid-column:2; }
+}
+@media (max-width:560px) {
+  :root { --text-page:2rem;--text-section:1.375rem;--text-card:1.125rem;--text-body:1rem; }
+  .overview-attention,.overview-row,.seo-primary-state,.capability-list-simple>article { grid-template-columns:1fr; }
+  .overview-attention-icon,.overview-row-icon,.seo-state-icon,.capability-icon { width:42px;height:42px; }
+  .overview-attention>button,.overview-row>button,.overview-row>.quiet-status,.seo-primary-state>button:not(.retry-link),.seo-primary-state .retry-link,.capability-list-simple>article>button { grid-column:1;width:100%; }
+  .quiet-status { text-align:center; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .connection-drawer-backdrop,.skill-drawer-backdrop,.connection-drawer,.skill-drawer,.overview-attention,.seo-primary-state { animation-duration:.01ms!important; }
+}
