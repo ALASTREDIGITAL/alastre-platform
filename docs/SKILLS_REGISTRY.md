@@ -140,3 +140,33 @@ Para todos os 11 itens: origem, commit e licença são os informados acima; scri
 - **Arquitetura de nova integração:** `alastre-saas-architecture` → `alastre-security-review`. Resultado esperado confirmado: Connection Hub, tenant isolation, credenciais server-side, validação de IDs, idempotência, auditoria e writes separados.
 
 O teste offline `codex debug prompt-input` confirmou que as 14 skills requeridas são injetadas no catálogo model-visible do Codex. `chain-of-thought-design` não aparece nesse catálogo. A simulação remota foi deliberadamente não realizada porque o revisor de segurança bloqueou o envio de contexto do repositório à API; o checkpoint permaneceu inteiramente local.
+
+## Stack V1.3 — Motion Design
+
+As cinco candidatas foram auditadas e aceitas como perfis adaptados. Nenhuma altera o produto por existir; o roteamento só as aplica quando motion tem função clara.
+
+| ID | Origem / commit / licença | Path / status | Scripts, hooks e dependências | Uso / limites |
+| --- | --- | --- | --- | --- |
+| `animate` | `emilkowalski/skills` / `d23d7f88a2e21c9e4b1418c7abe420f5c1052ba7` / MIT | `.agents/skills/animate` / active-adapted | Nenhum; `RECIPES.md` é referência Markdown | Implementação solicitada; usa tokens Alastre, CSS primeiro e não anima sem propósito. |
+| `find-animation-opportunities` | mesma origem, commit e licença | `.agents/skills/find-animation-opportunities` / active-adapted | Nenhum | Auditoria read-only automática para “tela parada”; máximo cinco oportunidades e rejeições explícitas. |
+| `improve-animations` | mesma origem, commit e licença | `.agents/skills/improve-animations` / active-adapted | Nenhum; `AUDIT.md` e `PLAN-TEMPLATE.md` são referências | Na Alastre responde em conversa; não cria planos, não delega e não altera arquivos sem pedido específico. |
+| `review-animations` | mesma origem, commit e licença | `.agents/skills/review-animations` / active-adapted | Nenhum; `STANDARDS.md` é referência | Revisão automática somente quando o pedido for de motion; valores internos prevalecem. |
+| `design-motion-principles` | `kylezantos/design-motion-principles` / `4a9ca879f24a361f4dca4174fe2da0f67b5ddee3` / MIT | `.agents/skills/design-motion-principles` / active-adapted | Sem scripts/hooks/dependências; referências incluem templates HTML inertes | Perfil Alastre usa relatório Markdown inline, não abre browser/HTML e exclui motion lúdico do dashboard. |
+| `alastre-motion-system` | Alastre Digital / 1.0.0 / interna | `.agents/skills/alastre-motion-system` / active | Nenhum | Autoridade para propósito, tokens, reduced motion, performance e padrões por componente. |
+
+Licenças preservadas em `.agents/skills/EMIL_KOWALSKI_SKILLS_LICENSE.txt` e `.agents/skills/KYLE_ZANTOS_MOTION_LICENSE.txt`. Os repositórios auditados não possuem scripts ou hooks dentro das cinco skills. Nenhum comando descrito nas referências, relatório HTML, browser-open, subagente ou instalação de pacote foi executado.
+
+### Tokens conceituais
+
+`alastre-motion-system` define `duration-instant`, `duration-fast`, `duration-normal`, `duration-emphasis`, `easing-standard`, `easing-enter`, `easing-exit` e `easing-emphasized`. Os valores concretos deverão ser centralizados e calibrados no Marco Design V2; componentes não podem criar escalas paralelas.
+
+### Auditoria prática — App Shell e Sidebar
+
+- **Alta prioridade:** o recolhimento da sidebar troca `width` e `margin-left` sem transição coordenada. Uma transição curta, interruptível e baseada nos tokens normal/standard pode explicar a mudança espacial; reduced motion deve ser instantâneo.
+- **Média prioridade:** o ícone do toggle muda entre setas sem continuidade. Um crossfade curto por opacity pode confirmar direção sem bounce ou rotação chamativa.
+- **Baixa prioridade:** grupos expansíveis mudam conteúdo e sinal `+`/`−` abruptamente. Uma indicação curta de estado pode ajudar, desde que não anime grandes blocos nem atrase navegação.
+- **Preservar:** itens da navegação já têm feedback de background/color em 180 ms; adicionar translate/scale em cada item seria excesso.
+- **Rejeitado:** transição animada entre todos os módulos. A navegação é frequente e o shell persistente já mantém orientação; motion de página atrasaria leitura.
+- **Acessibilidade confirmada:** há fallback global para `prefers-reduced-motion` em `app/globals.css`.
+
+Nenhuma dessas oportunidades foi implementada neste checkpoint; são insumos específicos para o Marco Design V2.

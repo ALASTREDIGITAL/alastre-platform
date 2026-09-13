@@ -48,3 +48,11 @@ Para adicionar, crie uma pasta em `.agents/skills` com um `SKILL.md`, registre o
 **“Use meu feedback nas próximas sugestões.”** O Codex aplica Feedback Loops. Preferências podem ser registradas de forma visível e reversível, mas regras críticas, permissões, aprovações e política de publicação nunca mudam silenciosamente.
 
 **“Desenhe uma nova integração.”** O Codex aplica Alastre SaaS Architecture e Alastre Security Review. O desenho mantém tenant isolation, Connection Hub como dono da integração, tokens server-side, IDs validados no backend, idempotência, auditoria e execução externa separada da aprovação.
+
+## Motion
+
+**“Essa tela está parada.”** O Codex aplica Find Animation Opportunities, Improve Animations e Alastre Motion System. Primeiro procura poucas oportunidades com função real; pode concluir que não animar é a melhor decisão.
+
+**“Revise as animações.”** O Codex aplica Review Animations, Design Motion Principles, Alastre Motion System e Impeccable. A revisão cobre propósito, frequência, tokens, interrupção, performance, legibilidade e movimento reduzido.
+
+**“Crie uma nova tela.”** Motion entra somente depois que Frontend Design e Alastre Product UX resolverem hierarquia, conteúdo e navegação. Nenhuma animação é adicionada automaticamente apenas para dar efeito.

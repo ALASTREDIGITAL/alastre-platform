@@ -66,8 +66,8 @@ O resumo final deve informar somente o que foi implementado, áreas principais a
 
 Use as skills de `.agents/skills` automaticamente pelo tipo de trabalho; o usuário não precisa citar nomes.
 
-- Nova interface ou reformulação visual substancial: `frontend-design` → `alastre-product-ux`.
-- Redesign de produto: `frontend-design` quando houver nova direção → `alastre-product-ux` → `impeccable`.
+- Nova interface ou reformulação visual substancial: `frontend-design` → `alastre-product-ux` → `alastre-motion-system` somente quando motion tiver função clara.
+- Redesign de produto: `frontend-design` quando houver nova direção → `alastre-product-ux` → `find-animation-opportunities` → `improve-animations` → `impeccable`.
 - Responsividade, ultrawide, navegação ou UX complexa: `alastre-product-ux` → QA visual → `impeccable`.
 - Finalização de tela ou polimento: QA visual → `impeccable`.
 - SEO Local, Perfil da Empresa, Local Score, avaliações, postagens ou ranking local: `alastre-local-seo`.
@@ -88,6 +88,14 @@ Use as skills de `.agents/skills` automaticamente pelo tipo de trabalho; o usuá
 - Dado incerto, parcial ou indisponível: `trust-calibration` → `transparency-patterns`.
 
 Para um agente de SEO Local, combine o fluxo de agentes com `alastre-local-seo`, `trust-calibration` e `transparency-patterns`. `chain-of-thought-design` não está instalada: use somente o workflow observável dados → validações → regras → proposta → evidências → aprovação, sem solicitar, armazenar ou expor raciocínio interno.
+
+### Motion
+
+- Tela percebida como parada ou pedido por oportunidades: `find-animation-opportunities` → `improve-animations` → `alastre-motion-system`.
+- Implementar animação solicitada: `alastre-product-ux` → `alastre-motion-system` → `animate`.
+- Revisar animações existentes: `review-animations` → `design-motion-principles` → `alastre-motion-system` → `impeccable`.
+- Motion entra somente depois de hierarquia, conteúdo e UX estarem resolvidos. Não force as skills de motion em tarefas que não precisam de movimento.
+- Toda recomendação respeita `prefers-reduced-motion`, acessibilidade, performance, legibilidade e os tokens semânticos da Alastre. Não use animação constante, glow pulsante, bounce infantil, confetti de rotina ou efeitos gratuitos.
 
 Ordem preferencial:
 
