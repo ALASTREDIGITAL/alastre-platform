@@ -9,7 +9,10 @@ export async function POST(request:NextRequest){
   const parsed=connectionHubRequest.safeParse(await request.json());
   if(!parsed.success)return NextResponse.json({error:{code:"invalid_request",message:"Não foi possível entender esta solicitação."}},{status:400});
   if(parsed.data.action==="providers")return NextResponse.json({providers,status_labels:statusCopy,google:googleConfigurationStatus()});
-  if(parsed.data.action==="prepare_authorization")return parsed.data.provider==="google"?NextResponse.json({next:"/api/connections/google/authorize",configured:googleConfigurationStatus().configured}):NextResponse.json({error:{code:"authorization_not_enabled",message:"A conexão Meta será habilitada futuramente."}},{status:501});
+  if(parsed.data.action==="prepare_authorization"){const configuration=googleConfigurationStatus();return parsed.data.provider==="google"?configuration.providerAvailability!=="ready_for_oauth"?NextResponse.json({error:{code:"provider_pending",message:"A integração com o Google está sendo preparada pela Alastre. Nenhuma ação é necessária agora."},configuration},{status:503}):NextResponse.json({next:"/api/connections/google/authorize",configured:configuration.configured}):NextResponse.json({error:{code:"authorization_not_enabled",message:"A conexão Meta será habilitada futuramente."}},{status:501});}
+  const configuration=googleConfigurationStatus();
+  if(parsed.data.action==="health"&&configuration.providerAvailability!=="ready_for_oauth")return NextResponse.json({health:{status:configuration.health}});
+  if(parsed.data.action==="client_connection"&&configuration.providerAvailability!=="ready_for_oauth")return NextResponse.json({connected:false,binding:null,provider_availability:configuration.providerAvailability,health:configuration.health});
   const runtime=createHubRuntime();
   if(!runtime)return NextResponse.json({available:false,items:[],configuration:googleConfigurationStatus(),error:{code:"connection_hub_not_configured",message:"Google precisa ser configurado pelo administrador da plataforma."}},{status:503});
   const actor=await runtime.repository.resolveActor(email);

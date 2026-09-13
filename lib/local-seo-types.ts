@@ -1,8 +1,10 @@
-export type LocalSeoDataState = "calculated" | "partial" | "insufficient" | "not_connected";
+export type LocalSeoDataState = "calculated" | "partial" | "insufficient" | "not_connected" | "syncing" | "demo" | "sync_error";
+export type LocalSeoDataSource = "internal" | "mock" | "google_business_profile";
+export type LocalSeoDataProvenance = {source:LocalSeoDataSource;state:LocalSeoDataState;label:string;detail:string;isReal:boolean};
 export type LocalScorePillarKey = "profile" | "relevance" | "reputation" | "content" | "authority" | "local_presence" | "conversion";
-export type LocalScorePillar = { key:LocalScorePillarKey; label:string; score:number|null; state:LocalSeoDataState; signals:string[]; issues:string[]; opportunities:string[]; recommendation:string };
+export type LocalScorePillar = { key:LocalScorePillarKey; label:string; score:number|null; weight:number; state:LocalSeoDataState; confidence:"high"|"medium"|"low"|"none"; signals:string[]; issues:string[]; opportunities:string[]; recommendation:string;likelyImpact:string };
 export type GoogleProfileSnapshot = { name:string; primaryCategory:string|null; secondaryCategories:string[]; location:string|null; phone:string|null; website:string|null; description:string|null; services:string[]; attributes:string[]; hours:string|null; photos:number|null; completeness:number|null };
-export type LocalSeoWorkspace = { clientId:string; clientName:string; connection:"connected"|"not_connected"; score:{value:number|null;state:LocalSeoDataState;version:string;pillars:LocalScorePillar[]}; profile:GoogleProfileSnapshot };
+export type LocalSeoWorkspace = { clientId:string; clientName:string; connection:"connected"|"not_connected"; provenance:LocalSeoDataProvenance; score:{value:number|null;state:LocalSeoDataState;version:string;pillars:LocalScorePillar[]}; profile:GoogleProfileSnapshot };
 export type LocalSeoSection = "overview"|"profile"|"score"|"reviews"|"posts"|"keywords"|"competitors"|"opportunities"|"history";
 export type LocalSeoPostStatus = "idea"|"draft"|"review"|"waiting_approval"|"approved"|"ready_to_publish"|"published"|"rejected"|"changes_requested";
 export type LocalSeoReviewStatus = "new"|"response_suggested"|"review"|"approved"|"ready_to_respond"|"responded";

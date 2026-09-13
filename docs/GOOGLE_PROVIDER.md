@@ -1,5 +1,16 @@
 # Google no Connection Hub
 
+## Projeto oficial e situação administrativa
+
+- Google Cloud Project: **Alastre Platform**
+- Project ID: `alastre-platform`
+- Project Number: `286084102789`
+- Solicitação GBP: `4-5388000041735`
+- Estado atual: `pending_provider_approval`
+- Gerenciamento: `platform_managed`
+
+O Google ainda não aprovou/liberou o acesso. `Alastre Reports` não é o projeto oficial do novo SaaS. Enquanto o provider estiver pendente, OAuth, discovery e health externo ficam bloqueados. Nenhum segredo é registrado nesta documentação.
+
 ## Fluxo
 
 O Google é um único provider do Connection Hub. Nesta primeira integração, o consentimento solicita apenas `https://www.googleapis.com/auth/business.manage`. O servidor cria uma sessão curta e single-use, armazena somente o hash de `state` na tabela e guarda o verificador PKCE no Supabase Vault. O callback valida usuário, tenant, estado e expiração antes de trocar o código.
@@ -22,7 +33,7 @@ A migration do Connection Hub precisa ser aplicada e o Vault precisa estar dispo
 
 ## Google Provider Readiness
 
-- [ ] Google Cloud project definido
+- [x] Google Cloud project definido
 - [ ] Business Profile APIs habilitadas e aprovadas
 - [ ] OAuth consent configurado
 - [ ] OAuth Client criado
@@ -34,3 +45,14 @@ A migration do Connection Hub precisa ser aplicada e o Vault precisa estar dispo
 - [ ] Account discovery validado
 - [ ] Location discovery validado
 - [ ] Client binding validado
+
+## Primeiro teste real após aprovação
+
+1. Confirmar quota GBP maior que zero e APIs necessárias habilitadas.
+2. Configurar Google Auth, criar o OAuth Web Client e cadastrar o redirect URI.
+3. Configurar as variáveis somente no servidor.
+4. Alterar `GOOGLE_PROVIDER_AVAILABILITY` para `ready_for_oauth`.
+5. Usuário conecta o Google, autoriza, escolhe Account/Location e vincula o Perfil ao cliente.
+6. Executar a primeira sincronização estritamente read-only.
+
+`ALASTRE_WRITE_MODE` permanece `disabled`; não publicar perfil, posts ou respostas nesta etapa.

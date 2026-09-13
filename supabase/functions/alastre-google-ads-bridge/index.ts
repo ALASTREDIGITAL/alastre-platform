@@ -398,7 +398,10 @@ Deno.serve(async (request: Request) => {
     if (imported?.instagram_url) sources.push({ source_type:"instagram",label:"Instagram informado no onboarding",source_url:imported.instagram_url,status:"needs_review",facts:{ discovered_from:"raw_profile" } });
     const profile = { name,segment,city,business_data:{ address:imported?.address??"",phone:imported?.phone??"",rating:imported?.rating??null,review_count:imported?.review_count??null,services:imported?.services??[],instagram_url:imported?.instagram_url??"",primary_service:safeText(body.primary_service,180)||imported?.primary_service||"",objective:safeText(body.objective,300)},local_intelligence:{diagnosis:imported?.diagnosis??null},source_summary:{confirmed:imported?6:1,needs_review:gbpUrl?1:0,extraction_mode:imported?"structured_rules":"manual"},sources };
     const result = await rpcJson(base,"platform_onboard_client",{p_actor_id:actor.actor_id,p_idempotency_key:body.idempotency_key,p_profile:profile});
-    return result.response.ok ? reply(result.data,201) : reply({error:"onboarding_failed"},400);
+    if(!result.response.ok)return reply({error:"onboarding_failed"},400);
+    const created=result.data as JsonObject,clientId=safeText(created?.id,80),allowedServices=["local_seo","google_ads","meta_ads","sites_seo","reports","commercial","finance"],services=Array.isArray(body.services)?body.services.map(value=>safeText(value,40)).filter(value=>allowedServices.includes(value)):[];
+    if(clientId&&services.length){const serviceResult=await restJson(`${base}/client_services`,{method:"POST",body:JSON.stringify(services.map(service_key=>({agency_id:actor.agency_id,client_id:clientId,service_key,status:"active",configured_by_user_id:actor.actor_id})))});return reply({...created,services_status:serviceResult.response.ok?"saved":"pending"},201)}
+    return reply(created,201);
   }
 
   if (body.action === "chat") {

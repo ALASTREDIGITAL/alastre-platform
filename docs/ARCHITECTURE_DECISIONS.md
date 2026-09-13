@@ -92,3 +92,15 @@ Toda connection, capability, resource, authorization session e binding carrega `
 ## AD-017 — Google provider, Vault e consentimento incremental
 
 Google é um provider único com capabilities independentes. A primeira autorização solicita somente `business.manage` para Google Business Profile; Google Ads, Analytics e Tag Manager exigirão consentimento incremental. Tokens são armazenados pelo `CredentialStore` no Supabase Vault e entidades públicas conservam apenas a referência. O adapter é server-side, paginado e read-only nesta fase. Dados Google não sobrescrevem o DNA: são uma fonte de verdade apenas para os campos do recurso externo.
+
+## AD-018 — Disponibilidade administrativa separada da conexão
+
+Disponibilidade do provider, autorização, conexão do cliente e health são dimensões distintas. O Google inicia em `pending_provider_approval`; esse estado impede OAuth, discovery e health externo. A transição para `ready_for_oauth` ocorre por configuração server-side (`GOOGLE_PROVIDER_AVAILABILITY`) e não por controle público da interface.
+
+## AD-019 — Integrações gerenciadas pela plataforma
+
+Providers podem usar `platform_managed` ou `customer_managed`. Google começa como `platform_managed`: a Alastre administra aplicação OAuth, infraestrutura, scopes, callbacks e armazenamento seguro, enquanto o cliente apenas consente, escolhe recursos e os vincula ao cadastro correto.
+
+## AD-020 — Serviços do cliente e origem explícita dos dados
+
+Serviços contratados são registros próprios por `client_id`, separados de billing e de connections. Módulos verificam serviço habilitado e capability válida. SEO Local consome `LocalSeoDataProvider`; a interface nunca conhece OAuth nem apresenta fixture como dado real.

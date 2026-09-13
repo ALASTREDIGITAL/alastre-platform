@@ -86,3 +86,22 @@ O roadmap prioriza primeiro uma operação interna utilizável e, em seguida, o 
 - [x] Supabase Vault como credential store e resource binding com validação de tenant.
 - [x] SEO Local consulta o Connection Hub por cliente e capability.
 - [ ] Aplicar a migration local e configurar as credenciais OAuth administrativas para realizar a primeira conexão real.
+
+### Marco C.2 — SaaS readiness enquanto Google está pendente
+
+- [x] Status administrativo do provider separado de conexão, autorização e health.
+- [x] Google `platform_managed` e bloqueado em `pending_provider_approval` sem chamadas externas.
+- [x] Onboarding em seis etapas e catálogo de serviços por cliente.
+- [x] Abstração `LocalSeoDataProvider` e estados confiáveis de dados.
+- [x] Central de Operações preparada para escala sem contagens fictícias.
+- [ ] Após aprovação: configurar OAuth, marcar `ready_for_oauth` e executar a primeira sincronização read-only.
+
+### Marco D — SEO Local V2: central operacional
+
+- [x] Visão executiva por cliente com saúde, origem dos dados e ações diretas.
+- [x] Local Score V2 com pesos, confiança, evidências, problemas, impacto e recomendação.
+- [x] Auditoria completa do Perfil Google preparada sem fabricar verificações.
+- [x] Centrais operacionais de avaliações, planejamento editorial e oportunidades.
+- [x] Palavras-chave, LocalRankProvider separado e comparação competitiva preparados.
+- [x] Central da Agência e Cliente 360 preparados para operação modular.
+- [ ] Persistir e alimentar os novos domínios após aplicação autorizada da migration e conexão de fontes reais.
