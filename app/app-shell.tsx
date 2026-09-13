@@ -113,6 +113,9 @@ groups.push({
 const mobileItems = groups
   .flatMap((group) => group.items)
   .filter((item) => item.view);
+const viewLabels = Object.fromEntries(
+  mobileItems.map((item) => [item.view, item.label]),
+) as Partial<Record<View, string>>;
 export function AppShell({ userName }: { userName: string }) {
   const [activeView, setActiveView] = useState<View>("overview");
   const [sidebarCompact, setSidebarCompact] = useState(false);
@@ -228,7 +231,10 @@ export function AppShell({ userName }: { userName: string }) {
           </div>
         </div>
         <button type="button" className="sidebar-toggle" onClick={toggleSidebar} aria-label={sidebarCompact ? "Expandir menu lateral" : "Recolher menu lateral"} title={sidebarCompact ? "Expandir menu lateral" : "Recolher menu lateral"}>
-          {sidebarCompact ? <ChevronRight /> : <ChevronLeft />}
+          <span className="sidebar-toggle-icons" aria-hidden="true">
+            <ChevronLeft className="sidebar-toggle-collapse" />
+            <ChevronRight className="sidebar-toggle-expand" />
+          </span>
         </button>
         <nav className="side-nav grouped-nav">
           {groups.map((group) => (
@@ -279,6 +285,10 @@ export function AppShell({ userName }: { userName: string }) {
               />
             </div>
             <strong>ALASTRE</strong>
+          </div>
+          <div className="workspace-context" aria-live="polite">
+            <span>Alastre Platform /</span>
+            <strong>{viewLabels[activeView] ?? "Operação"}</strong>
           </div>
           <div className="environment-pill">
             <span className="live-pulse" />

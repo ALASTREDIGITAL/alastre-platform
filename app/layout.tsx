@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
-import "@fontsource/poppins/400.css";
-import "@fontsource/poppins/500.css";
-import "@fontsource/poppins/600.css";
-import "@fontsource/poppins/700.css";
+import "@fontsource-variable/manrope";
 import "./globals.css";
 import "./typography.css";
 import "./tracking-lifecycle.css";
