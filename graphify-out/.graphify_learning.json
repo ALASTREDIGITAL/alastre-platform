@@ -1,0 +1,38 @@
+{
+  "generated_at": "2026-09-13T23:21:28.592030+00:00",
+  "nodes": {
+    "app_approvals_module_approval": {
+      "code_fingerprint": "32938c024f3d77f4a56491c54dd83018ad7dc5efd041f68716e802b8df3d9d89",
+      "label": "Approval",
+      "last": "2026-09-13T23:19:08.988043+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-13T23:19:08.988043+00:00",
+          "outcome": "useful",
+          "q": "Como SEO Local se conecta a approvals?"
+        }
+      ],
+      "score": 0.999962668,
+      "source_file": "app/approvals-module.tsx",
+      "status": "tentative",
+      "uses": 1
+    },
+    "components_local_seo_operations_postoperations": {
+      "code_fingerprint": "15b16f61336537fe884a407d95185138fa59255947dfbe7fe14f8a6b661548f5",
+      "label": "PostOperations()",
+      "last": "2026-09-13T23:19:08.988043+00:00",
+      "provenance": [
+        {
+          "date": "2026-09-13T23:19:08.988043+00:00",
+          "outcome": "useful",
+          "q": "Como SEO Local se conecta a approvals?"
+        }
+      ],
+      "score": 0.999962668,
+      "source_file": "components/local-seo-operations.tsx",
+      "status": "tentative",
+      "uses": 1
+    }
+  },
+  "version": 1
+}

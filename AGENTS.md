@@ -113,3 +113,30 @@ Ordem preferencial:
 Se duas skills conflitarem, prevalecem o pedido atual do usuário, estas instruções, as decisões de arquitetura e os controles de segurança, nessa ordem. Não execute scripts, hooks ou instaladores de skills de terceiros sem auditoria e autorização adequadas.
 
 `taste-skill` e a skill externa chamada `progressive-disclosure` não fazem parte do roteamento: a primeira exclui dashboards e produto multi-etapas; a segunda organiza arquivos de instrução, não interfaces. Progressive disclosure de produto é uma regra interna de `alastre-product-ux`. O Impeccable instalado é o perfil Alastre sem launcher, binário ou hooks.
+
+## Token Economy Mode e Graph-first
+
+Hierarquia obrigatória: regras Alastre → roteamento das skills → Graphify para orientação/contexto → leitura seletiva do source code. Graphify não substitui `AGENTS.md`, `PRODUCT_VISION.md`, `ROADMAP.md`, `PROJECT_STATUS.md`, `ARCHITECTURE_DECISIONS.md` nem as skills Alastre.
+
+Quando houver `graphify-out/graph.json` atualizado, consulte o Graphify primeiro para localizar implementação, entender arquitetura, descobrir dependências e arquivos relacionados, rastrear fluxos ou analisar impacto. Prefira queries específicas e confirme no source apenas os fatos que sustentam a decisão.
+
+Não consulte o grafo para arquivo explicitamente conhecido, typo, alteração pequena localizada, contexto já aberto ou informação fornecida diretamente pelo usuário. Não leia dezenas de arquivos preventivamente e não faça grep global quando uma query direcionada for suficiente.
+
+Fluxo preferido: entender o pedido → consultar Graphify quando orientação for necessária → identificar candidatos → abrir somente fontes relevantes → implementar → validar localmente. Evite releitura de documentação conhecida, explicações repetidas e baterias completas durante iteração.
+
+Freshness: compare o commit registrado em `graphify-out/graph.json` com o estado atual. Grafo no mesmo checkpoint é atualizado; alterações estruturais posteriores tornam-no possivelmente desatualizado; módulos, dependências ou arquivos centrais adicionados/removidos tornam-no desatualizado. Nunca confie cegamente em grafo stale.
+
+Atualize incrementalmente após módulo novo, mudança arquitetural, adição/remoção de arquivos importantes, alteração de dependências estruturais ou checkpoint relevante. Não reconstrua o grafo por CSS, typo ou mudança visual pequena.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+When the user types `/graphify`, use the installed graphify skill or instructions before doing anything else.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- Dirty graphify-out/ files are expected after hooks or incremental updates; dirty graph files are not a reason to skip graphify. Only skip graphify if the task is about stale or incorrect graph output, or the user explicitly says not to use it.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- Depois de mudanças estruturais relevantes, execute `graphify update .`; não atualize após toda edição pequena.

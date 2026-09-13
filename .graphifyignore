@@ -1,0 +1,99 @@
+# Graphify is an architectural map, not a repository archive.
+# Keep this file stricter than .gitignore: secrets are never graph inputs.
+
+# Initial graph scope: application, shared UI, domain libraries, database shape
+# and human documentation. Root architecture/config files are allowed explicitly.
+*
+!app/
+!app/**
+!components/
+!components/**
+!lib/
+!lib/**
+!supabase/
+!supabase/**
+!docs/
+!docs/**
+!AGENTS.md
+!package.json
+!tsconfig.json
+!next.config.ts
+!eslint.config.mjs
+
+# Dependencies, generated artifacts and caches
+node_modules/
+.next/
+dist/
+build/
+coverage/
+out/
+.wrangler/
+.sites-runtime/
+.vercel/
+.git/
+cache/
+caches/
+logs/
+screenshots/
+outputs/
+work/
+tmp/
+temp/
+vendor/
+public/
+examples/
+tests/
+
+# Agent governance remains separate from the application graph
+.agents/
+.codex/
+.claude/
+
+# Secrets, credentials and sensitive exports — never index
+.env
+.env.*
+**/.env
+**/.env.*
+**/*credential*
+**/*credentials*
+**/*secret*
+**/*token*
+**/*vault*
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.p12
+**/*prod-dump*
+**/*dump*.sql
+**/*customer-data*
+
+# Media and binary artifacts
+**/*.png
+**/*.jpg
+**/*.jpeg
+**/*.gif
+**/*.webp
+**/*.ico
+**/*.pdf
+**/*.doc
+**/*.docx
+**/*.xls
+**/*.xlsx
+**/*.ppt
+**/*.pptx
+**/*.zip
+**/*.tar
+**/*.gz
+**/*.mp4
+**/*.mov
+**/*.mp3
+**/*.wav
+
+# Package/debug noise
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+bun.lock
