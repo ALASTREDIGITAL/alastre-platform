@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { IntegrationState } from "@/components/platform-state";
 import { isArrayOf, isRecord, isRequestCancelled, isString, postPlatform, type JsonGuard } from "@/lib/platform-api";
 import {clientServiceCatalog,type ClientServiceKey} from "@/lib/client-services";
+import {postLocalSeoV2} from "@/lib/local-seo-v2-api";
 
 const onboardingSteps=["Dados da empresa","DNA da empresa","Conexões","Serviços contratados","Revisão","Cliente pronto"];
 
@@ -25,7 +26,7 @@ export function ClientsModule({ onOpenDna, onOpenAgent, onOpenLocalSeo, onOpenCo
   const [clients,setClients]=useState<ClientSummary[]>([]); const [loading,setLoading]=useState(true); const [unavailable,setUnavailable]=useState(false); const [adding,setAdding]=useState(false); const [saving,setSaving]=useState(false); const [error,setError]=useState("");
   const [form,setForm]=useState({name:"",segment:"",city:"",primary_service:"",objective:"",gbp_url:"",raw_profile:""}); const [preview,setPreview]=useState<ImportPreview|null>(null); const [analyzing,setAnalyzing]=useState(false);
   const [services,setServices]=useState<ClientServiceKey[]>(["local_seo"]);
-  const load=useCallback(async(signal?:AbortSignal)=>{setLoading(true);setUnavailable(false);try{const items=await postPlatform({action:"clients"},isClientSummaryArray,signal);if(!signal?.aborted)setClients(items)}catch(error){if(isRequestCancelled(error))return;setClients([]);setUnavailable(true)}finally{if(!signal?.aborted)setLoading(false)}},[]);
+  const load=useCallback(async(signal?:AbortSignal)=>{setLoading(true);setUnavailable(false);try{let items:ClientSummary[];try{items=await postPlatform({action:"clients"},isClientSummaryArray,signal)}catch{const data=await postLocalSeoV2({action:"clients"},signal),raw=Array.isArray(data.clients)?data.clients:[];items=raw.filter(isClientSummary)}if(!signal?.aborted)setClients(items)}catch(error){if(isRequestCancelled(error))return;setClients([]);setUnavailable(true)}finally{if(!signal?.aborted)setLoading(false)}},[]);
   useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>void load(controller.signal),0);return()=>{window.clearTimeout(timer);controller.abort()}},[load]);
   async function analyze(){setAnalyzing(true);setError("");try{const {profile:p}=await postPlatform({action:"analyze_import",raw_profile:form.raw_profile},isImportResponse);setPreview(p);setForm(f=>({...f,name:p.name||f.name,segment:p.segment||f.segment,city:p.city||f.city,primary_service:p.primary_service||f.primary_service,gbp_url:p.google_profile_url||f.gbp_url}))}catch{setError("Não foi possível interpretar os dados agora. Tente novamente quando a integração estiver conectada.")}finally{setAnalyzing(false)}}
   async function save(){setSaving(true);setError("");try{const created=await postPlatform({action:"onboard",idempotency_key:commandKey.current,...form,services},isCreatedClient);commandKey.current=crypto.randomUUID();setAdding(false);setPreview(null);setServices(["local_seo"]);setForm({name:"",segment:"",city:"",primary_service:"",objective:"",gbp_url:"",raw_profile:""});onOpenDna(created.id)}catch{setError("Não foi possível cadastrar agora. Confira os campos e a conexão.")}finally{setSaving(false)}}

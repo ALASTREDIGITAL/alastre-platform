@@ -400,7 +400,7 @@ Deno.serve(async (request: Request) => {
     const result = await rpcJson(base,"platform_onboard_client",{p_actor_id:actor.actor_id,p_idempotency_key:body.idempotency_key,p_profile:profile});
     if(!result.response.ok)return reply({error:"onboarding_failed"},400);
     const created=result.data as JsonObject,clientId=safeText(created?.id,80),allowedServices=["local_seo","google_ads","meta_ads","sites_seo","reports","commercial","finance"],services=Array.isArray(body.services)?body.services.map(value=>safeText(value,40)).filter(value=>allowedServices.includes(value)):[];
-    if(clientId&&services.length){const serviceResult=await restJson(`${base}/client_services`,{method:"POST",body:JSON.stringify(services.map(service_key=>({agency_id:actor.agency_id,client_id:clientId,service_key,status:"active",configured_by_user_id:actor.actor_id})))});return reply({...created,services_status:serviceResult.response.ok?"saved":"pending"},201)}
+    if(clientId&&services.length){const serviceResult=await restJson(`${base}/client_services`,{method:"POST",body:JSON.stringify(services.map(service_key=>({agency_id:actor.agency_id,client_id:clientId,service_key,status:"active"})))});return reply({...created,services_status:serviceResult.response.ok?"saved":"pending"},201)}
     return reply(created,201);
   }
 

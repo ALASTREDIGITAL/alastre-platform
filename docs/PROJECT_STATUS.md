@@ -93,3 +93,15 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
 - Planejamento editorial mensal, objetivos de conteúdo, palavras-chave, ranking local separado e concorrentes foram preparados.
 - Migration local `20260913042436_local_seo_v2_foundation.sql` cria score snapshots, profile checks, keywords, rank snapshots e competitors com RLS e acesso exclusivo do `service_role`. Não foi aplicada remotamente.
 - Google continua em `pending_provider_approval`; `ALASTRE_WRITE_MODE=disabled`.
+
+## Marco D.1 — persistência real e operação manual
+
+- Migrations `20260913035820_client_services_and_provider_admin` e `20260913042436_local_seo_v2_foundation` aplicadas em **2026-09-13** somente na homologação autorizada (`fifbtwbndutbvwnbzgtz`).
+- Serviços por cliente, auditoria manual do perfil, palavras-chave, concorrentes, snapshots de score parcial e oportunidades determinísticas possuem API interna validada por ator, agência, cliente e papel.
+- Novas tabelas estão com RLS ativo, acesso direto negado a `anon`/`authenticated`, acesso de servidor restrito a `service_role`, constraints e índices de consulta.
+- O score parcial considera apenas verificações confirmadas; ausência de evidência não gera nota.
+- Oportunidades por regras usam origem determinística e índice único para evitar duplicação aberta.
+- A interface oferece cadastro, aprovação/arquivamento, auditoria manual e recarga persistente; ranking real e Google Business Profile continuam explicitamente indisponíveis.
+- O ambiente local ainda precisa receber, por gestão segura de ambiente, `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`; nenhum segredo foi criado ou alterado.
+- A correção da bridge para persistir serviços sem um identificador de usuário inválido está no código local, mas **não foi publicada**.
+- `ALASTRE_WRITE_MODE` permanece desativado; nenhuma escrita em Google, GTM, GA4, GBP ou Ads foi realizada.

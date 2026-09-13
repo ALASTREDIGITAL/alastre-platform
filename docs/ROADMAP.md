@@ -104,4 +104,8 @@ O roadmap prioriza primeiro uma operação interna utilizável e, em seguida, o 
 - [x] Centrais operacionais de avaliações, planejamento editorial e oportunidades.
 - [x] Palavras-chave, LocalRankProvider separado e comparação competitiva preparados.
 - [x] Central da Agência e Cliente 360 preparados para operação modular.
-- [ ] Persistir e alimentar os novos domínios após aplicação autorizada da migration e conexão de fontes reais.
+- [x] Aplicar as migrations autorizadas e persistir serviços, auditoria manual, palavras-chave, concorrentes, score parcial e oportunidades por regra.
+- [x] Restringir os novos domínios ao servidor com RLS, validação de tenant e auditoria operacional.
+- [ ] Configurar as variáveis seguras no runtime local para homologar o ciclo completo pela interface.
+- [ ] Integrar o gateway de IA para sugestões de palavras-chave quando a configuração estiver disponível.
+- [ ] Conectar Google Business Profile e um LocalRankProvider após aprovação dos providers, mantendo leitura e escrita externa sob controles separados.
