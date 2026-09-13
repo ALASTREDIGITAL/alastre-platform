@@ -1,46 +1,570 @@
 "use client";
-import {useCallback,useEffect,useMemo,useState} from "react";
-import {Building2,CalendarDays,Compass,History,Lightbulb,Link2Off,MapPinned,RefreshCw,Search,Star,Store,Target,Users} from "lucide-react";
-import {Button} from "@/components/ui/button";
-import {IntegrationState} from "@/components/platform-state";
-import {LocalScore} from "@/components/local-score";
-import {DailySeoQueue,OpportunityOperations,PostOperations,ReviewOperations} from "@/components/local-seo-operations";
-import {CompetitorsWorkspace,ExecutiveOverview,HistoryWorkspace,KeywordsWorkspace,ProfileAudit} from "@/components/local-seo-v2";
-import {type ClientSummary} from "./clients-module";
-import {resolveLocalSeoDataProvider} from "@/lib/local-seo-data-provider";
-import type {LocalSeoSection} from "@/lib/local-seo-types";
-import {isRequestCancelled} from "@/lib/platform-api";
-import {postLocalSeo} from "@/lib/local-seo-api";
-import {postLocalSeoV2} from "@/lib/local-seo-v2-api";
-import {clientServiceCatalog,type ClientServiceKey} from "@/lib/client-services";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Building2,
+  CalendarDays,
+  Compass,
+  History,
+  Lightbulb,
+  Link2Off,
+  MapPinned,
+  RefreshCw,
+  Search,
+  Star,
+  Store,
+  Target,
+  Users,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { IntegrationState } from "@/components/platform-state";
+import { LocalScore } from "@/components/local-score";
+import {
+  DailySeoQueue,
+  OpportunityOperations,
+  PostOperations,
+  ReviewOperations,
+} from "@/components/local-seo-operations";
+import {
+  CompetitorsWorkspace,
+  ExecutiveOverview,
+  HistoryWorkspace,
+  KeywordsWorkspace,
+  ProfileAudit,
+} from "@/components/local-seo-v2";
+import { type ClientSummary } from "./clients-module";
+import { resolveLocalSeoDataProvider } from "@/lib/local-seo-data-provider";
+import type { LocalSeoSection } from "@/lib/local-seo-types";
+import { isRequestCancelled } from "@/lib/platform-api";
+import { postLocalSeo } from "@/lib/local-seo-api";
+import { postLocalSeoV2 } from "@/lib/local-seo-v2-api";
+import { PageHeader } from "@/components/page-header";
+import {
+  clientServiceCatalog,
+  type ClientServiceKey,
+} from "@/lib/client-services";
 
-type V2Data={services:Array<Record<string,unknown>>;keywords:Array<Record<string,unknown>>;competitors:Array<Record<string,unknown>>;checks:Array<Record<string,unknown>>;scores:Array<Record<string,unknown>>;opportunities:Array<Record<string,unknown>>};
-const emptyV2:V2Data={services:[],keywords:[],competitors:[],checks:[],scores:[],opportunities:[]};
+type V2Data = {
+  services: Array<Record<string, unknown>>;
+  keywords: Array<Record<string, unknown>>;
+  competitors: Array<Record<string, unknown>>;
+  checks: Array<Record<string, unknown>>;
+  scores: Array<Record<string, unknown>>;
+  opportunities: Array<Record<string, unknown>>;
+};
+const emptyV2: V2Data = {
+  services: [],
+  keywords: [],
+  competitors: [],
+  checks: [],
+  scores: [],
+  opportunities: [],
+};
 
-const sections:Array<{id:LocalSeoSection;label:string;icon:typeof Store}>=[{id:"overview",label:"Visão geral",icon:Compass},{id:"profile",label:"Perfil Google",icon:Store},{id:"score",label:"Local Score",icon:Target},{id:"reviews",label:"Avaliações",icon:Star},{id:"posts",label:"Postagens",icon:CalendarDays},{id:"keywords",label:"Palavras-chave",icon:Search},{id:"competitors",label:"Concorrentes",icon:Users},{id:"opportunities",label:"Oportunidades",icon:Lightbulb},{id:"history",label:"Histórico",icon:History}];
-function EmptyArea({icon:Icon,title,description}:{icon:typeof Store;title:string;description:string}){return <section className="panel local-empty"><span><Icon/></span><div><h2>{title}</h2><p>{description}</p><small><Link2Off/> Integração pendente · nenhuma ação externa disponível</small></div></section>}
+const sections: Array<{
+  id: LocalSeoSection;
+  label: string;
+  icon: typeof Store;
+}> = [
+  { id: "overview", label: "Visão geral", icon: Compass },
+  { id: "profile", label: "Perfil Google", icon: Store },
+  { id: "score", label: "Local Score", icon: Target },
+  { id: "reviews", label: "Avaliações", icon: Star },
+  { id: "posts", label: "Postagens", icon: CalendarDays },
+  { id: "keywords", label: "Palavras-chave", icon: Search },
+  { id: "competitors", label: "Concorrentes", icon: Users },
+  { id: "opportunities", label: "Oportunidades", icon: Lightbulb },
+  { id: "history", label: "Histórico", icon: History },
+];
+function EmptyArea({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof Store;
+  title: string;
+  description: string;
+}) {
+  return (
+    <section className="panel local-empty">
+      <span>
+        <Icon />
+      </span>
+      <div>
+        <h2>{title}</h2>
+        <p>{description}</p>
+        <small>
+          <Link2Off /> Integração pendente · nenhuma ação externa disponível
+        </small>
+      </div>
+    </section>
+  );
+}
 
-export function LocalSeoModule({clientId,onSelectClient,onOpenConnections}:{clientId:string;onSelectClient:(id:string)=>void;onOpenConnections:()=>void}){
- const [clients,setClients]=useState<ClientSummary[]>([]);const [loading,setLoading]=useState(true);const [unavailable,setUnavailable]=useState(false);const [section,setSection]=useState<LocalSeoSection>("overview");
- const [operations,setOperations]=useState<{posts:Array<Record<string,unknown>>;reviews:Array<Record<string,unknown>>;replies:Array<Record<string,unknown>>;opportunities:Array<Record<string,unknown>>}>({posts:[],reviews:[],replies:[],opportunities:[]});
- const [gbpConnection,setGbpConnection]=useState<"loading"|"connected"|"not_connected"|"not_configured"|"provider_pending">("loading");
- const [v2,setV2]=useState<V2Data>(emptyV2);const [v2Error,setV2Error]=useState("");
- const load=useCallback(async(signal?:AbortSignal)=>{setLoading(true);setUnavailable(false);try{const data=await postLocalSeoV2({action:"clients"},signal),raw=Array.isArray(data.clients)?data.clients:[];const list=raw.filter((item):item is ClientSummary=>!!item&&typeof item==="object"&&typeof (item as Record<string,unknown>).id==="string"&&typeof (item as Record<string,unknown>).name==="string");if(signal?.aborted)return;setClients(list);if(list.length&&!list.some(item=>item.id===clientId))onSelectClient(list[0].id)}catch(error){if(isRequestCancelled(error))return;setClients([]);setUnavailable(true)}finally{if(!signal?.aborted)setLoading(false)}},[clientId,onSelectClient]);
- useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>void load(controller.signal),0);return()=>{window.clearTimeout(timer);controller.abort()}},[load]);
- const loadOperations=useCallback(async(signal?:AbortSignal)=>{if(!clientId)return;try{const data=await postLocalSeo({action:"local_seo_workspace",client_id:clientId},signal);if(signal?.aborted)return;setOperations({posts:Array.isArray(data.posts)?data.posts as Array<Record<string,unknown>>:[],reviews:Array.isArray(data.reviews)?data.reviews as Array<Record<string,unknown>>:[],replies:Array.isArray(data.replies)?data.replies as Array<Record<string,unknown>>:[],opportunities:Array.isArray(data.opportunities)?data.opportunities as Array<Record<string,unknown>>:[]})}catch{if(!signal?.aborted)setOperations({posts:[],reviews:[],replies:[],opportunities:[]})}},[clientId]);
- useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>void loadOperations(controller.signal),0);return()=>{window.clearTimeout(timer);controller.abort()}},[loadOperations]);
- const loadV2=useCallback(async(signal?:AbortSignal)=>{if(!clientId){setV2(emptyV2);return}try{const data=await postLocalSeoV2({action:"workspace",client_id:clientId},signal);if(signal?.aborted)return;const rows=(key:keyof V2Data)=>Array.isArray(data[key])?data[key] as Array<Record<string,unknown>>:[];setV2({services:rows("services"),keywords:rows("keywords"),competitors:rows("competitors"),checks:rows("checks"),scores:rows("scores"),opportunities:rows("opportunities")});setV2Error("")}catch(error){if(!isRequestCancelled(error)&&!signal?.aborted){setV2(emptyV2);setV2Error(error instanceof Error?error.message:"Dados operacionais indisponíveis.")}}},[clientId]);
- useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>void loadV2(controller.signal),0);return()=>{window.clearTimeout(timer);controller.abort()}},[loadV2]);
- const mutateV2=useCallback(async(input:Parameters<typeof postLocalSeoV2>[0])=>{setV2Error("");try{await postLocalSeoV2(input);await loadV2()}catch(error){setV2Error(error instanceof Error?error.message:"Não foi possível salvar.")}},[loadV2]);
- useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>{if(!clientId){setGbpConnection("not_connected");return}void fetch("/api/connections",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"client_connection",client_id:clientId,capability:"google_business_profile"}),signal:controller.signal}).then(async response=>({ok:response.ok,data:await response.json().catch(()=>null) as {connected?:unknown;provider_availability?:unknown}|null})).then(({ok,data})=>{if(!controller.signal.aborted)setGbpConnection(ok&&data?.connected===true?"connected":data?.provider_availability==="pending_provider_approval"?"provider_pending":ok?"not_connected":"not_configured")}).catch(()=>{if(!controller.signal.aborted)setGbpConnection("not_configured")})},0);return()=>{window.clearTimeout(timer);controller.abort()}},[clientId]);
- const client=clients.find(item=>item.id===clientId)??null;const workspace=useMemo(()=>client?resolveLocalSeoDataProvider({googleConnected:gbpConnection==="connected"}).load(client):null,[client,gbpConnection]);
- const activeServices=v2.services.filter(row=>row.status==="active").map(row=>String(row.service_key) as ClientServiceKey);
- const servicesPanel=workspace&&section==="overview"?<section className="panel service-selector"><div><span className="section-kicker">SERVIÇOS DO CLIENTE</span><h2>Módulos habilitados</h2><p>Marque ou desmarque serviços e a carteira refletirá a configuração salva.</p></div><div>{Object.entries(clientServiceCatalog).map(([key,item])=>{const serviceKey=key as ClientServiceKey,active=activeServices.includes(serviceKey);return <Button key={key} variant={active?"default":"outline"} onClick={()=>void mutateV2({action:"services_set",client_id:clientId,services:(active?activeServices.filter(value=>value!==serviceKey):[...activeServices,serviceKey])})}>{active?"✓ ":""}{item.name}</Button>})}</div></section>:null;
- const offline=section==="overview"?<><IntegrationState compact message="A persistência interna não está disponível neste ambiente. A central continua navegável sem criar dados falsos." onRetry={()=>void load()}/><DailySeoQueue/></>:section==="profile"?<EmptyArea icon={Store} title="Auditoria aguardando um cliente" description="As verificações serão avaliadas sem criar resultados fictícios."/>:section==="score"?<EmptyArea icon={Target} title="Local Score aguardando evidências" description="Nenhuma pontuação será inventada sem dados confiáveis."/>:section==="reviews"?<ReviewOperations/>:section==="posts"?<PostOperations canCreate={false}/>:section==="keywords"?<KeywordsWorkspace clientId="" rows={[]}/>:section==="competitors"?<CompetitorsWorkspace clientId="" rows={[]}/>:section==="opportunities"?<OpportunityOperations/>:<HistoryWorkspace/>;
- return <div className="local-seo-page"><header className="module-title local-title"><div><div className="eyebrow"><MapPinned/> NÚCLEO OPERACIONAL</div><h1>SEO Local</h1><p>Saúde, reputação, conteúdo e oportunidades para operar por exceção.</p></div><label className="client-picker"><span>Cliente</span><select value={clientId} onChange={e=>onSelectClient(e.target.value)} disabled={!clients.length}>{clients.length?clients.map(item=><option value={item.id} key={item.id}>{item.name}</option>):<option value="">Sem clientes</option>}</select></label></header>
- <nav className="local-tabs" aria-label="Áreas de SEO Local">{sections.map(item=>{const Icon=item.icon;return <button type="button" key={item.id} className={section===item.id?"is-active":""} onClick={()=>setSection(item.id)}><Icon/><span>{item.label}</span></button>})}</nav>
- {clientId&&<div className="data-state-bar" aria-live="polite"><strong>{workspace?.provenance.label??"Dados insuficientes"}</strong><span>{workspace?.provenance.detail??"Selecione um cliente para consultar a origem dos dados."}</span><small>Registros internos: {operations.posts.length} postagens · {operations.reviews.length} avaliações · {operations.opportunities.length} oportunidades</small></div>}
- {!unavailable&&v2Error&&<IntegrationState compact message={v2Error} onRetry={()=>void loadV2()}/>}
- {servicesPanel}{unavailable?offline:loading?<div className="empty-state">Carregando contexto do cliente...</div>:!workspace?<EmptyArea icon={Building2} title="Nenhum cliente disponível" description="Cadastre ou conecte um cliente para iniciar o workspace de SEO Local."/>:section==="overview"?<ExecutiveOverview workspace={workspace} operations={{...operations,opportunities:v2.opportunities}} googleStatus={gbpConnection==="connected"?"Conectado":gbpConnection==="provider_pending"?"Aguardando liberação":"Não conectado"} onNavigate={setSection} onOpenConnections={onOpenConnections}/>:section==="score"?<div><LocalScore workspace={workspace}/><Button onClick={()=>void mutateV2({action:"calculate_score",client_id:clientId})}>Calcular score parcial</Button></div>:section==="profile"?<ProfileAudit workspace={workspace} googleConnected={gbpConnection==="connected"} checks={v2.checks} clientId={clientId} onSave={mutateV2}/>:section==="reviews"?<ReviewOperations rows={operations.reviews}/>:section==="posts"?<PostOperations clientId={clientId} clientName={workspace.clientName} canCreate rows={operations.posts} onChanged={()=>void loadOperations()}/>:section==="keywords"?<KeywordsWorkspace clientId={clientId} rows={v2.keywords} onSave={mutateV2}/>:section==="competitors"?<CompetitorsWorkspace clientId={clientId} rows={v2.competitors} onSave={mutateV2}/>:section==="opportunities"?<><Button onClick={()=>void mutateV2({action:"generate_opportunities",client_id:clientId})}>Gerar oportunidades por evidências</Button><OpportunityOperations rows={v2.opportunities} onNavigate={setSection}/></>:<HistoryWorkspace/>}
- <Button className="refresh-inline" variant="ghost" onClick={()=>void load()} disabled={loading}><RefreshCw/> Atualizar contexto</Button></div>
+export function LocalSeoModule({
+  clientId,
+  onSelectClient,
+  onOpenConnections,
+}: {
+  clientId: string;
+  onSelectClient: (id: string) => void;
+  onOpenConnections: () => void;
+}) {
+  const [clients, setClients] = useState<ClientSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unavailable, setUnavailable] = useState(false);
+  const [section, setSection] = useState<LocalSeoSection>("overview");
+  const [operations, setOperations] = useState<{
+    posts: Array<Record<string, unknown>>;
+    reviews: Array<Record<string, unknown>>;
+    replies: Array<Record<string, unknown>>;
+    opportunities: Array<Record<string, unknown>>;
+  }>({ posts: [], reviews: [], replies: [], opportunities: [] });
+  const [gbpConnection, setGbpConnection] = useState<
+    | "loading"
+    | "connected"
+    | "not_connected"
+    | "not_configured"
+    | "provider_pending"
+  >("loading");
+  const [v2, setV2] = useState<V2Data>(emptyV2);
+  const [v2Error, setV2Error] = useState("");
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
+      setLoading(true);
+      setUnavailable(false);
+      try {
+        const data = await postLocalSeoV2({ action: "clients" }, signal),
+          raw = Array.isArray(data.clients) ? data.clients : [];
+        const list = raw.filter(
+          (item): item is ClientSummary =>
+            !!item &&
+            typeof item === "object" &&
+            typeof (item as Record<string, unknown>).id === "string" &&
+            typeof (item as Record<string, unknown>).name === "string",
+        );
+        if (signal?.aborted) return;
+        setClients(list);
+        if (list.length && !list.some((item) => item.id === clientId))
+          onSelectClient(list[0].id);
+      } catch (error) {
+        if (isRequestCancelled(error)) return;
+        setClients([]);
+        setUnavailable(true);
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [clientId, onSelectClient],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => void load(controller.signal), 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [load]);
+  const loadOperations = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!clientId) return;
+      try {
+        const data = await postLocalSeo(
+          { action: "local_seo_workspace", client_id: clientId },
+          signal,
+        );
+        if (signal?.aborted) return;
+        setOperations({
+          posts: Array.isArray(data.posts)
+            ? (data.posts as Array<Record<string, unknown>>)
+            : [],
+          reviews: Array.isArray(data.reviews)
+            ? (data.reviews as Array<Record<string, unknown>>)
+            : [],
+          replies: Array.isArray(data.replies)
+            ? (data.replies as Array<Record<string, unknown>>)
+            : [],
+          opportunities: Array.isArray(data.opportunities)
+            ? (data.opportunities as Array<Record<string, unknown>>)
+            : [],
+        });
+      } catch {
+        if (!signal?.aborted)
+          setOperations({
+            posts: [],
+            reviews: [],
+            replies: [],
+            opportunities: [],
+          });
+      }
+    },
+    [clientId],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(
+      () => void loadOperations(controller.signal),
+      0,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [loadOperations]);
+  const loadV2 = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!clientId) {
+        setV2(emptyV2);
+        return;
+      }
+      try {
+        const data = await postLocalSeoV2(
+          { action: "workspace", client_id: clientId },
+          signal,
+        );
+        if (signal?.aborted) return;
+        const rows = (key: keyof V2Data) =>
+          Array.isArray(data[key])
+            ? (data[key] as Array<Record<string, unknown>>)
+            : [];
+        setV2({
+          services: rows("services"),
+          keywords: rows("keywords"),
+          competitors: rows("competitors"),
+          checks: rows("checks"),
+          scores: rows("scores"),
+          opportunities: rows("opportunities"),
+        });
+        setV2Error("");
+      } catch (error) {
+        if (!isRequestCancelled(error) && !signal?.aborted) {
+          setV2(emptyV2);
+          setV2Error(
+            error instanceof Error
+              ? error.message
+              : "Dados operacionais indisponíveis.",
+          );
+        }
+      }
+    },
+    [clientId],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => void loadV2(controller.signal), 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [loadV2]);
+  const mutateV2 = useCallback(
+    async (input: Parameters<typeof postLocalSeoV2>[0]) => {
+      setV2Error("");
+      try {
+        await postLocalSeoV2(input);
+        await loadV2();
+      } catch (error) {
+        setV2Error(
+          error instanceof Error ? error.message : "Não foi possível salvar.",
+        );
+      }
+    },
+    [loadV2],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      if (!clientId) {
+        setGbpConnection("not_connected");
+        return;
+      }
+      void fetch("/api/connections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "client_connection",
+          client_id: clientId,
+          capability: "google_business_profile",
+        }),
+        signal: controller.signal,
+      })
+        .then(async (response) => ({
+          ok: response.ok,
+          data: (await response.json().catch(() => null)) as {
+            connected?: unknown;
+            provider_availability?: unknown;
+          } | null,
+        }))
+        .then(({ ok, data }) => {
+          if (!controller.signal.aborted)
+            setGbpConnection(
+              ok && data?.connected === true
+                ? "connected"
+                : data?.provider_availability === "pending_provider_approval"
+                  ? "provider_pending"
+                  : ok
+                    ? "not_connected"
+                    : "not_configured",
+            );
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setGbpConnection("not_configured");
+        });
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [clientId]);
+  const client = clients.find((item) => item.id === clientId) ?? null;
+  const workspace = useMemo(
+    () =>
+      client
+        ? resolveLocalSeoDataProvider({
+            googleConnected: gbpConnection === "connected",
+          }).load(client)
+        : null,
+    [client, gbpConnection],
+  );
+  const activeServices = v2.services
+    .filter((row) => row.status === "active")
+    .map((row) => String(row.service_key) as ClientServiceKey);
+  const servicesPanel =
+    workspace && section === "overview" ? (
+      <section className="panel service-selector">
+        <div>
+          <span className="section-kicker">SERVIÇOS DO CLIENTE</span>
+          <h2>Módulos habilitados</h2>
+          <p>
+            Marque ou desmarque serviços e a carteira refletirá a configuração
+            salva.
+          </p>
+        </div>
+        <div>
+          {Object.entries(clientServiceCatalog).map(([key, item]) => {
+            const serviceKey = key as ClientServiceKey,
+              active = activeServices.includes(serviceKey);
+            return (
+              <Button
+                key={key}
+                variant={active ? "default" : "outline"}
+                onClick={() =>
+                  void mutateV2({
+                    action: "services_set",
+                    client_id: clientId,
+                    services: active
+                      ? activeServices.filter((value) => value !== serviceKey)
+                      : [...activeServices, serviceKey],
+                  })
+                }
+              >
+                {active ? "✓ " : ""}
+                {item.name}
+              </Button>
+            );
+          })}
+        </div>
+      </section>
+    ) : null;
+  const offline =
+    section === "overview" ? (
+      <>
+        <IntegrationState
+          compact
+          message="A persistência interna não está disponível neste ambiente. A central continua navegável sem criar dados falsos."
+          onRetry={() => void load()}
+        />
+        <DailySeoQueue />
+      </>
+    ) : section === "profile" ? (
+      <EmptyArea
+        icon={Store}
+        title="Auditoria aguardando um cliente"
+        description="As verificações serão avaliadas sem criar resultados fictícios."
+      />
+    ) : section === "score" ? (
+      <EmptyArea
+        icon={Target}
+        title="Local Score aguardando evidências"
+        description="Nenhuma pontuação será inventada sem dados confiáveis."
+      />
+    ) : section === "reviews" ? (
+      <ReviewOperations />
+    ) : section === "posts" ? (
+      <PostOperations canCreate={false} />
+    ) : section === "keywords" ? (
+      <KeywordsWorkspace clientId="" rows={[]} />
+    ) : section === "competitors" ? (
+      <CompetitorsWorkspace clientId="" rows={[]} />
+    ) : section === "opportunities" ? (
+      <OpportunityOperations />
+    ) : (
+      <HistoryWorkspace />
+    );
+  return (
+    <div className="local-seo-page">
+      <PageHeader
+        eyebrow={
+          <>
+            <MapPinned /> PRESENÇA LOCAL
+          </>
+        }
+        title="SEO Local"
+        description="Gerencie a presença do cliente no Google, organize melhorias e acompanhe oportunidades em linguagem simples."
+        helpKey="local_seo.overview"
+        actions={
+          <label className="client-picker">
+            <span>Cliente</span>
+            <select
+              value={clientId}
+              onChange={(e) => onSelectClient(e.target.value)}
+              disabled={!clients.length}
+            >
+              {clients.length ? (
+                clients.map((item) => (
+                  <option value={item.id} key={item.id}>
+                    {item.name}
+                  </option>
+                ))
+              ) : (
+                <option value="">Sem clientes</option>
+              )}
+            </select>
+          </label>
+        }
+      />
+      <nav className="local-tabs" aria-label="Áreas de SEO Local">
+        {sections.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              type="button"
+              key={item.id}
+              className={section === item.id ? "is-active" : ""}
+              onClick={() => setSection(item.id)}
+            >
+              <Icon />
+              <span>{item.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+      {clientId && (
+        <div className="data-state-bar" aria-live="polite">
+          <strong>
+            {workspace?.provenance.label ?? "Dados insuficientes"}
+          </strong>
+          <span>
+            {workspace?.provenance.detail ??
+              "Selecione um cliente para consultar a origem dos dados."}
+          </span>
+          <small>
+            Registros internos: {operations.posts.length} postagens ·{" "}
+            {operations.reviews.length} avaliações ·{" "}
+            {operations.opportunities.length} oportunidades
+          </small>
+        </div>
+      )}
+      {!unavailable && v2Error && (
+        <IntegrationState
+          compact
+          message={v2Error}
+          onRetry={() => void loadV2()}
+        />
+      )}
+      {servicesPanel}
+      {unavailable ? (
+        offline
+      ) : loading ? (
+        <div className="empty-state">Carregando contexto do cliente...</div>
+      ) : !workspace ? (
+        <EmptyArea
+          icon={Building2}
+          title="Nenhum cliente disponível"
+          description="Cadastre ou conecte um cliente para iniciar o workspace de SEO Local."
+        />
+      ) : section === "overview" ? (
+        <ExecutiveOverview
+          workspace={workspace}
+          operations={{ ...operations, opportunities: v2.opportunities }}
+          googleStatus={
+            gbpConnection === "connected"
+              ? "Conectado"
+              : gbpConnection === "provider_pending"
+                ? "Aguardando liberação"
+                : "Não conectado"
+          }
+          onNavigate={setSection}
+          onOpenConnections={onOpenConnections}
+        />
+      ) : section === "score" ? (
+        <div>
+          <LocalScore workspace={workspace} />
+          <Button
+            onClick={() =>
+              void mutateV2({ action: "calculate_score", client_id: clientId })
+            }
+          >
+            Calcular score parcial
+          </Button>
+        </div>
+      ) : section === "profile" ? (
+        <ProfileAudit
+          workspace={workspace}
+          googleConnected={gbpConnection === "connected"}
+          checks={v2.checks}
+          clientId={clientId}
+          onSave={mutateV2}
+        />
+      ) : section === "reviews" ? (
+        <ReviewOperations rows={operations.reviews} />
+      ) : section === "posts" ? (
+        <PostOperations
+          clientId={clientId}
+          clientName={workspace.clientName}
+          canCreate
+          rows={operations.posts}
+          onChanged={() => void loadOperations()}
+        />
+      ) : section === "keywords" ? (
+        <KeywordsWorkspace
+          clientId={clientId}
+          rows={v2.keywords}
+          onSave={mutateV2}
+        />
+      ) : section === "competitors" ? (
+        <CompetitorsWorkspace
+          clientId={clientId}
+          rows={v2.competitors}
+          onSave={mutateV2}
+        />
+      ) : section === "opportunities" ? (
+        <>
+          <Button
+            onClick={() =>
+              void mutateV2({
+                action: "generate_opportunities",
+                client_id: clientId,
+              })
+            }
+          >
+            Gerar oportunidades por evidências
+          </Button>
+          <OpportunityOperations
+            rows={v2.opportunities}
+            onNavigate={setSection}
+          />
+        </>
+      ) : (
+        <HistoryWorkspace />
+      )}
+      <Button
+        className="refresh-inline"
+        variant="ghost"
+        onClick={() => void load()}
+        disabled={loading}
+      >
+        <RefreshCw /> Atualizar contexto
+      </Button>
+    </div>
+  );
 }

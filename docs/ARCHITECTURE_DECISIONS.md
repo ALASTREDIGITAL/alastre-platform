@@ -104,3 +104,15 @@ Providers podem usar `platform_managed` ou `customer_managed`. Google começa co
 ## AD-020 — Serviços do cliente e origem explícita dos dados
 
 Serviços contratados são registros próprios por `client_id`, separados de billing e de connections. Módulos verificam serviço habilitado e capability válida. SEO Local consome `LocalSeoDataProvider`; a interface nunca conhece OAuth nem apresenta fixture como dado real.
+
+## AD-021 — Ajuda contextual como requisito do produto
+
+Toda funcionalidade significativa deve oferecer ajuda contextual compreensível para pessoas sem conhecimento técnico. O conteúdo parte de um registro tipado por `help_key`, permitindo evolução futura para uma Central de Ajuda sem espalhar explicações extensas pelos módulos.
+
+## AD-022 — Modo Simples e legibilidade em primeiro lugar
+
+O Modo Simples é a experiência principal do produto. Linguagem compreensível, tipografia legível, contraste, áreas de clique confortáveis e hierarquia clara têm prioridade sobre densidade de informação. IDs, códigos de provider, scopes, payloads, diagnósticos e logs ficam restritos ao Modo Avançado e sempre sanitizados.
+
+## AD-023 — Shell fluido e containers por finalidade
+
+O AppShell ocupa toda a largura útil da viewport. Dashboards, tabelas, filas e grids são fluidos; formulários, textos longos e conteúdos de leitura usam limites próprios. A sidebar é contextual, recolhível e persiste somente a preferência visual local do usuário. Breakpoints reorganizam conteúdo em vez de reduzir tipografia para fazê-lo caber.

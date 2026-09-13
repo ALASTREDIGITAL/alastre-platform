@@ -105,3 +105,15 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
 - O ambiente local ainda precisa receber, por gestão segura de ambiente, `NEXT_PUBLIC_SUPABASE_URL` e `SUPABASE_SECRET_KEY`; nenhum segredo foi criado ou alterado.
 - A correção da bridge para persistir serviços sem um identificador de usuário inválido está no código local, mas **não foi publicada**.
 - `ALASTRE_WRITE_MODE` permanece desativado; nenhuma escrita em Google, GTM, GA4, GBP ou Ads foi realizada.
+
+## Marco UX — redesign global
+
+- Design system ganhou escala tipográfica sem textos funcionais abaixo de 13px, espaçamento mais generoso, cards menos densos e áreas de clique de pelo menos 44px.
+- Central de Operações, Clientes, SEO Local, Local Score e Connection Hub usam hierarquia de página consistente e linguagem orientada a pessoas não técnicas.
+- Ajuda contextual usa um registro tipado por `help_key`, com explicação, importância e próximo passo; a arquitetura está pronta para evoluir para uma Central de Ajuda.
+- Sidebar foi reorganizada em Operação, Clientes, SEO Local, Aquisição, Conteúdo, Gestão e Configurações.
+- Modo Simples permanece a experiência principal; detalhes administrativos do Google continuam exclusivos do Modo Avançado.
+- Responsividade, foco visível, contraste, navegação por teclado e estados que não dependem apenas de cor foram reforçados.
+- AppShell agora é fluido, sem `max-width` global, com gutters proporcionais e grids adaptativos até ultrawide.
+- Sidebar possui grupos recolhíveis, modo compacto persistido localmente, tooltip por item e desaparece em favor da navegação móvel abaixo de 821px.
+- Google Ads usa a largura adicional em uma composição 2/3 + 1/3; métricas, filas e cards aumentam o número de colunas conforme o espaço real.
