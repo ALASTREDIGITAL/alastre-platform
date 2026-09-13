@@ -1,6 +1,7 @@
 "use client";
 import {
   BarChart3,
+  BrainCircuit,
   Bot,
   BriefcaseBusiness,
   CheckCircle2,
@@ -31,6 +32,7 @@ import { TrackingModule } from "./tracking-module";
 import { LocalSeoModule } from "./local-seo-module";
 import { OverviewModule } from "./overview-module";
 import { ConnectionsModule } from "./connections-module";
+import { SkillsModule } from "./skills-module";
 type View =
   | "overview"
   | "clients"
@@ -42,8 +44,9 @@ type View =
   | "approvals"
   | "costs"
   | "audit"
-  | "connections";
-const views:View[]=["overview","clients","dna","local-seo","google-ads","tracking","agents","approvals","costs","audit","connections"];
+  | "connections"
+  | "skills";
+const views:View[]=["overview","clients","dna","local-seo","google-ads","tracking","agents","approvals","costs","audit","connections","skills"];
 type NavItem = {
   label: string;
   icon: typeof Store;
@@ -102,7 +105,10 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
 ];
 groups.push({
   label: "Configurações",
-  items: [{ label: "Conexões", icon: Link2, view: "connections" }],
+  items: [
+    { label: "Conexões", icon: Link2, view: "connections" },
+    { label: "Inteligência e Skills", icon: BrainCircuit, view: "skills" },
+  ],
 });
 const mobileItems = groups
   .flatMap((group) => group.items)
@@ -135,7 +141,9 @@ export function AppShell({ userName }: { userName: string }) {
     return next;
   });
   const content =
-    activeView === "connections" ? (
+    activeView === "skills" ? (
+      <SkillsModule />
+    ) : activeView === "connections" ? (
       <ConnectionsModule />
     ) : activeView === "local-seo" ? (
       <LocalSeoModule

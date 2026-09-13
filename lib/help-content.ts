@@ -37,6 +37,12 @@ export const HELP_CONTENT = {
     nextStep:
       "Quando uma integração estiver disponível, escolha a conta e o recurso correto.",
   },
+  "skills.overview": {
+    title: "Skills",
+    description: "São guias de trabalho que ajudam a inteligência a seguir o padrão correto para cada tarefa.",
+    whyItMatters: "Mantêm produto, segurança, arquitetura e SEO Local consistentes sem exigir comandos especiais.",
+    nextStep: "Consulte o catálogo para entender quando cada guia é usado. A seleção é automática.",
+  },
   "approval.action": {
     title: "Aprovação interna",
     description: "Marca o item como revisado pela equipe.",

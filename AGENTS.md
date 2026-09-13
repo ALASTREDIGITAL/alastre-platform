@@ -61,3 +61,43 @@ Em cada macroetapa:
 7. apresente resumo conciso.
 
 O resumo final deve informar somente o que foi implementado, áreas principais alteradas, validações realizadas, riscos ou pendências reais e a próxima macroetapa recomendada.
+
+## Roteador de skills
+
+Use as skills de `.agents/skills` automaticamente pelo tipo de trabalho; o usuário não precisa citar nomes.
+
+- Nova interface ou reformulação visual substancial: `frontend-design` → `alastre-product-ux`.
+- Redesign de produto: `frontend-design` quando houver nova direção → `alastre-product-ux` → `impeccable`.
+- Responsividade, ultrawide, navegação ou UX complexa: `alastre-product-ux` → QA visual → `impeccable`.
+- Finalização de tela ou polimento: QA visual → `impeccable`.
+- SEO Local, Perfil da Empresa, Local Score, avaliações, postagens ou ranking local: `alastre-local-seo`.
+- Arquitetura, SaaS, multi-tenant, contrato de API, persistência ou provider: `alastre-saas-architecture`.
+- Integração, IA, dados, permissão, ação externa ou mudança sensível: finalize com `alastre-security-review`.
+- Bug, refatoração, domínio, revisão e testes: combine com as skills de engenharia já existentes somente quando o gatilho delas corresponder.
+
+### Agentes, contexto, confiança e ações externas
+
+- Criar agente: `system-prompt-structure` → `template-design` → `few-shot-patterns` → `constraint-specification`.
+- Revisar agente: `system-prompt-structure` → `constraint-specification` → `alastre-security-review` quando houver dados, permissões ou efeitos.
+- Contexto de IA, memória, DNA ou recuperação sob demanda: `context-window-design`.
+- Conversação, esclarecimento, erro, recuperação, confirmação ou handoff: `conversation-patterns`.
+- Feedback ou aprendizado: `feedback-loops`; mudanças persistentes em regras críticas exigem governança explícita.
+- Ação externa: `mixed-initiative-flow` → `guardrail-design` → `alastre-security-review`.
+- Backend ou arquitetura: `alastre-saas-architecture` → `alastre-security-review`.
+- SEO Local: `alastre-local-seo` → `trust-calibration` → `transparency-patterns`.
+- Dado incerto, parcial ou indisponível: `trust-calibration` → `transparency-patterns`.
+
+Para um agente de SEO Local, combine o fluxo de agentes com `alastre-local-seo`, `trust-calibration` e `transparency-patterns`. `chain-of-thought-design` não está instalada: use somente o workflow observável dados → validações → regras → proposta → evidências → aprovação, sem solicitar, armazenar ou expor raciocínio interno.
+
+Ordem preferencial:
+
+1. compreender produto e estado atual;
+2. aplicar a skill principal do domínio;
+3. aplicar arquitetura apenas quando a mudança for estrutural;
+4. implementar;
+5. aplicar revisão de segurança quando houver dados, IA, integrações ou efeitos externos;
+6. validar de forma proporcional.
+
+Se duas skills conflitarem, prevalecem o pedido atual do usuário, estas instruções, as decisões de arquitetura e os controles de segurança, nessa ordem. Não execute scripts, hooks ou instaladores de skills de terceiros sem auditoria e autorização adequadas.
+
+`taste-skill` e a skill externa chamada `progressive-disclosure` não fazem parte do roteamento: a primeira exclui dashboards e produto multi-etapas; a segunda organiza arquivos de instrução, não interfaces. Progressive disclosure de produto é uma regra interna de `alastre-product-ux`. O Impeccable instalado é o perfil Alastre sem launcher, binário ou hooks.
