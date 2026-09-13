@@ -159,11 +159,13 @@ export function AppShell({ userName }: { userName: string }) {
         clientId={selectedClient}
         onSelectClient={setSelectedClient}
         onBack={() => setActiveView("overview")}
+        onOpenConnections={() => setActiveView("connections")}
       />
     ) : activeView === "tracking" ? (
       <TrackingModule
         clientId={selectedClient}
         onSelectClient={setSelectedClient}
+        onOpenConnections={() => setActiveView("connections")}
       />
     ) : activeView === "clients" ? (
       <ClientsModule
@@ -184,6 +186,7 @@ export function AppShell({ userName }: { userName: string }) {
     ) : activeView === "dna" ? (
       <DnaModule
         clientId={selectedClient}
+        onOpenClients={() => setActiveView("clients")}
         onOpenAgent={(id) => {
           setSelectedClient(id);
           setActiveView("agents");
@@ -192,6 +195,7 @@ export function AppShell({ userName }: { userName: string }) {
     ) : activeView === "agents" ? (
       <AgentWorkspace
         clientId={selectedClient}
+        onOpenClients={() => setActiveView("clients")}
         onOpenBuilder={(id) => {
           setSelectedClient(id);
           setActiveView("google-ads");
@@ -202,7 +206,7 @@ export function AppShell({ userName }: { userName: string }) {
     ) : activeView === "audit" ? (
       <OperationsModule mode="audit" />
     ) : activeView === "approvals" ? (
-      <ApprovalsModule />
+      <ApprovalsModule onOpenConnections={() => setActiveView("connections")} />
     ) : (
       <OverviewModule
         firstName={firstName}

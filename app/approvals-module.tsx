@@ -5,7 +5,7 @@ import { CheckCircle2, Clock3, FileCheck2, MapPin, RefreshCw, RotateCcw, ShieldC
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { IntegrationState } from "@/components/platform-state";
+import { DecisionState, IntegrationState } from "@/components/platform-state";
 import { isArrayOf, isRecord, isRequestCancelled, isString, postGoogleAds } from "@/lib/platform-api";
 
 type Approval = {
@@ -37,7 +37,7 @@ const approvalStatuses=["pending","approved","rejected","changes_requested","can
 const isApproval=(value:unknown):value is Approval=>isRecord(value)&&isString(value.id)&&isString(value.status)&&approvalStatuses.includes(value.status as Approval["status"])&&isString(value.created_at)&&isRecord(value.snapshot);
 const isApprovalArray=isArrayOf(isApproval);
 
-export function ApprovalsModule() {
+export function ApprovalsModule({onOpenConnections}:{onOpenConnections?:()=>void}) {
   const [items, setItems] = useState<Approval[]>([]);
   const [selected, setSelected] = useState<Approval | null>(null);
   const [note, setNote] = useState("");
@@ -86,7 +86,8 @@ export function ApprovalsModule() {
       <div><div className="eyebrow"><ShieldCheck /> HUMAN-IN-THE-LOOP</div><h1>Central de Aprovações</h1><p>Revise decisões preparadas pela IA antes que qualquer ação avance para execução.</p></div>
       <Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw /> Atualizar</Button>
     </div>
-    {unavailable ? <IntegrationState compact message="A fila de aprovações será exibida quando a integração estiver conectada. Nenhuma decisão foi alterada." onRetry={() => void load()} /> : null}
+    {unavailable ? <IntegrationState compact message="A fila aparecerá quando os serviços necessários estiverem conectados. Nenhuma decisão foi alterada." onRetry={() => void load()} /> : loading ? <DecisionState title="Carregando decisões" message="Estamos verificando se algo precisa da sua atenção." /> : items.length === 0 ? <DecisionState icon={CheckCircle2} title="Nenhuma decisão aguardando você." message="Os itens aparecerão aqui depois que os agentes prepararem uma ação para sua revisão." actionLabel={onOpenConnections ? "Configurar conexões" : undefined} onAction={onOpenConnections} /> : null}
+    {!unavailable && !loading && items.length > 0 ? <>
     <section className="approval-summary">
       <article><Clock3 /><div><strong>{pending}</strong><span>Pendentes</span></div></article>
       <article><CheckCircle2 /><div><strong>{items.filter((item) => item.status === "approved").length}</strong><span>Aprovadas</span></div></article>
@@ -125,6 +126,6 @@ export function ApprovalsModule() {
           </div> : selected.decision_note ? <div className="decision-note"><strong>Observação registrada</strong><span>{selected.decision_note}</span></div> : null}
         </>}
       </article>
-    </section>
+    </section></> : null}
   </div>;
 }

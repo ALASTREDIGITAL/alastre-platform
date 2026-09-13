@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { IntegrationState } from "@/components/platform-state";
+import { DecisionState, IntegrationState } from "@/components/platform-state";
 import {
   isArrayOf,
   isRecord,
@@ -435,18 +435,16 @@ export function ClientsModule({
         </section>
       )}
       {unavailable ? (
-        <IntegrationState
+        <IntegrationState compact
           message="A carteira será carregada assim que a conexão deste ambiente estiver configurada. Nenhum cliente foi removido."
           onRetry={() => void load()}
         />
       ) : (
         <section className="client-grid">
           {loading ? (
-            <div className="empty-state">Carregando clientes...</div>
+            <DecisionState title="Carregando clientes" message="Estamos organizando sua carteira." />
           ) : clients.length === 0 ? (
-            <div className="empty-state">
-              Nenhum cliente cadastrado nesta carteira.
-            </div>
+            <DecisionState icon={Building2} title="Comece adicionando seu primeiro cliente." message="O cliente será a base para organizar DNA, agentes, campanhas e resultados." actionLabel="Adicionar cliente" onAction={() => setAdding(true)} secondaryLabel={onOpenConnections ? "Ver conexões" : undefined} onSecondary={onOpenConnections} />
           ) : (
             clients.map((c) => {
               const b = c.dna?.business_data ?? {};

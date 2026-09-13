@@ -350,6 +350,25 @@ button, input, select, textarea { font-family: inherit; }
 .workspace-context { display: flex; min-width: 0; align-items: center; gap: .5rem; margin-right: auto; }
 .workspace-context span { color: var(--content-muted); font-size: .67rem; }
 .workspace-context strong { overflow: hidden; font-size: .82rem; font-weight: 680; text-overflow: ellipsis; white-space: nowrap; }
+
+/* UX V3.1 — readable navigation and one clear decision per empty state */
+.nav-item { font-size: .9rem; }
+.nav-label { color: var(--content-secondary); font-size: .8rem; }
+.soon-label { font-size: .75rem !important; }
+.workspace-context span, .workspace-context strong { font-size: .875rem; }
+.decision-state { display:flex; width:min(100%,720px); align-items:flex-start; gap:1rem; padding:1.4rem; }
+.decision-state-icon { display:grid; flex:0 0 42px; width:42px; height:42px; place-items:center; border-radius:12px; background:var(--brand-soft); color:var(--brand); }
+.decision-state-icon svg { width:20px; height:20px; }
+.decision-state h2 { margin:0; font-size:1.15rem; }
+.decision-state p { max-width:58ch; margin:.4rem 0 0; color:var(--content-secondary); font-size:.95rem; line-height:1.55; }
+.decision-state-actions { display:flex; flex-wrap:wrap; gap:.6rem; margin-top:1rem; }
+.client-grid > .decision-state { grid-column:1/-1; }
+.integration-state.compact { width:min(100%,760px); padding:1.15rem 1.25rem; }
+.integration-state.compact h2 { font-size:1.08rem; }
+.integration-state.compact p, .integration-state-safety { font-size:.875rem; }
+.demo-data-state { display:flex; width:min(100%,760px); align-items:center; gap:.75rem; border:1px solid color-mix(in srgb,var(--warning) 35%,var(--line)); border-radius:12px; background:color-mix(in srgb,var(--warning) 7%,var(--surface-1)); padding:.8rem 1rem; color:var(--content-secondary); font-size:.875rem; }
+.state-followup-action { align-self:flex-start; }
+.client-meta span, .detail-grid span, .detail-grid strong, .chat-head span, .composer-help, .audit-row small { font-size:.875rem; }
 .environment-pill { margin-left: auto; margin-right: 1rem; font-size: .67rem; letter-spacing: .02em; text-transform: none; }
 .live-pulse { width: 6px; height: 6px; box-shadow: 0 0 0 3px var(--brand-soft); }
 .theme-trigger { min-width: 104px; height: 38px; border-radius: .6rem; background: var(--surface-1); font-size: .78rem; }

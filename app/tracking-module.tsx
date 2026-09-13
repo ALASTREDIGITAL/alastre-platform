@@ -43,7 +43,7 @@ function HelpTip({title,children}:{title:string;children:string}) {
   return <details className="help-tip"><summary aria-label={`Entenda: ${title}`}><CircleHelp/> O que é isso?</summary><div><strong>{title}</strong><p>{children}</p></div></details>;
 }
 
-export function TrackingModule({clientId,onSelectClient}:{clientId:string;onSelectClient:(id:string)=>void}) {
+export function TrackingModule({clientId,onSelectClient,onOpenConnections}:{clientId:string;onSelectClient:(id:string)=>void;onOpenConnections?:()=>void}) {
   const [clients,setClients]=useState<Client[]>([]); const [data,setData]=useState<Workspace|null>(null); const [loading,setLoading]=useState(true); const [working,setWorking]=useState(false); const [notice,setNotice]=useState("");
   const [loadError,setLoadError]=useState<LoadError|null>(null);
   const [domain,setDomain]=useState(""); const [platform,setPlatform]=useState("custom"); const [industry,setIndustry]=useState("local_business");
@@ -94,7 +94,7 @@ export function TrackingModule({clientId,onSelectClient}:{clientId:string;onSele
   const currentStep=Math.min(guideSteps.findIndex(step=>!step.done)===-1?guideSteps.length-1:guideSteps.findIndex(step=>!step.done),guideSteps.length-1);
   const progress=Math.round(completedSteps/guideSteps.length*100);
   if(loading)return <div className="empty-state">Carregando infraestrutura de mensuração...</div>;
-  if(loadError)return <div className="tracking-page"><div className="module-title"><div><div className="eyebrow"><Waypoints/> TRACKING PROVISIONING</div><h1>GTM e GA4</h1><p>Mensuração e governança em um fluxo protegido.</p></div></div><IntegrationState title={loadError.title} message={loadError.message} onRetry={()=>void load()}/></div>;
+  if(loadError)return <div className="tracking-page"><div className="module-title"><div><div className="eyebrow"><Waypoints/> MENSURAÇÃO</div><h1>GTM e GA4</h1><p>Configure a mensuração do cliente em um fluxo protegido e fácil de revisar.</p></div></div><IntegrationState compact title="Dados ainda não conectados" message="Configure a conexão para descobrir GTM, GA4 e eventos existentes. Nada foi publicado." onRetry={()=>void load()}/>{onOpenConnections?<Button className="state-followup-action" onClick={onOpenConnections}>Configurar conexão</Button>:null}</div>;
   return <div className="tracking-page">
     <div className="module-title"><div><div className="eyebrow"><Waypoints/> TRACKING PROVISIONING</div><h1>GTM e GA4</h1><p>Escolha o cliente, descubra a estrutura atual e prepare um plano controlado antes de qualquer publicação.</p></div><select value={clientId} onChange={event=>onSelectClient(event.target.value)}>{clients.map(client=><option key={client.id} value={client.id}>{client.name}</option>)}</select></div>
     <section className="tracking-hero"><div><span className="section-kicker">CLIENTE ATIVO</span><h2>{current?.name??data?.client.name}</h2><p>{data?.profile?.domain??"Tracking ainda não configurado"}</p></div><div className="tracking-health"><Badge variant="outline">{data?.profile?statusLabel[data.profile.status]??data.profile.status:"NÃO INICIADO"}</Badge><strong>{data?.profile?.health==="healthy"?"Saudável":"Preparação"}</strong><span><ShieldCheck/> Escrita externa bloqueada</span></div></section>

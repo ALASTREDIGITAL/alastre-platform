@@ -8,7 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { IntegrationState } from "@/components/platform-state";
+import { DecisionState, IntegrationState } from "@/components/platform-state";
 import { isArrayOf, isRecord, isRequestCancelled, isString, postGoogleAds, postPlatform } from "@/lib/platform-api";
 import { isClientSummaryArray, type ClientSummary } from "./clients-module";
 
@@ -24,7 +24,7 @@ const defaultKeywords = [
 const isApprovalSummary=(value:unknown):value is {status:string}=>isRecord(value)&&isString(value.status);
 const isApprovalList=isArrayOf(isApprovalSummary);
 
-export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId:string; onSelectClient:(id:string)=>void; onBack: () => void }) {
+export function GoogleAdsModule({ clientId, onSelectClient, onBack, onOpenConnections }: { clientId:string; onSelectClient:(id:string)=>void; onBack: () => void; onOpenConnections?:()=>void }) {
   const commandKey = useRef(crypto.randomUUID());
   const [clients,setClients]=useState<ClientSummary[]>([]);
   const [tab, setTab] = useState<"analysis" | "builder">("analysis");
@@ -99,9 +99,9 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId
         <div className="ads-title-actions"><select aria-label="Cliente da operação" value={activeClient?clientId:""} onChange={event=>onSelectClient(event.target.value)} disabled={clients.length===0}>{clients.length?<>{clients.map(client=><option key={client.id} value={client.id}>{client.name}</option>)}</>:<option value="">Nenhum cliente disponível</option>}</select><div className="ads-mode"><ShieldCheck /><div><strong>Modo simulação</strong><span>Nenhuma alteração será publicada</span></div></div></div>
       </div>
 
-      {unavailable?<IntegrationState compact message="A operação continua disponível para revisão visual, mas dados reais e aprovações aguardam a conexão deste ambiente." onRetry={()=>void loadClients()}/>:loadingClients?<div className="empty-state">Carregando operação...</div>:null}
+      {unavailable?<IntegrationState compact message="Conecte o Google Ads para consultar dados reais e preparar campanhas para aprovação." onRetry={()=>void loadClients()}/>:loadingClients?<DecisionState title="Carregando Google Ads" message="Estamos verificando clientes e conexões disponíveis."/>:!activeClient?<DecisionState icon={Search} title="Selecione um cliente para começar." message="O painel só aparece depois que houver um cliente válido e uma conexão disponível." actionLabel={onOpenConnections?"Configurar Google Ads":undefined} onAction={onOpenConnections}/>:null}
 
-      <section className="ads-metrics" aria-label="Resumo Google Ads">
+      {!unavailable&&!loadingClients&&activeClient?<><div className="demo-data-state"><Badge variant="outline">MODO DEMONSTRAÇÃO</Badge><span>Dados de exemplo para revisar o fluxo. Não representam uma conta Google Ads conectada.</span></div><section className="ads-metrics" aria-label="Resumo Google Ads de demonstração">
         <article><span className="metric-icon purple"><Gauge /></span><div><small>SAÚDE DA CONTA</small><strong>87<span>/100</span></strong><em>Boa estrutura</em></div></article>
         <article><span className="metric-icon green"><Target /></span><div><small>CONVERSÃO PRINCIPAL</small><strong className="metric-text">Formulário</strong><em>Configurada</em></div></article>
         <article><span className="metric-icon amber"><CircleDollarSign /></span><div><small>ORÇAMENTO</small><strong className="metric-text">R$ 42,85/dia</strong><em>R$ 300 por semana</em></div></article>
@@ -118,7 +118,7 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId
           <article className="ads-panel ai-analysis">
             <div className="panel-heading">
               <div><span className="section-kicker">DIAGNÓSTICO AUTOMÁTICO</span><h2>O que a IA encontrou</h2></div>
-              <Badge variant="outline">Atualizado agora</Badge>
+              <Badge variant="outline">DADOS DE EXEMPLO</Badge>
             </div>
             <div className="ai-hero">
               <div className="score-ring"><strong>87</strong><span>de 100</span></div>
@@ -188,7 +188,7 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack }: { clientId
             {approvalState === "error" && <p className="approval-error">Não foi possível salvar. Revise a conexão e tente novamente.</p>}
           </aside>
         </section>
-      )}
+      )}</> : null}
     </div>
   );
 }
