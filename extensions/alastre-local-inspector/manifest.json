@@ -1,0 +1,76 @@
+{
+  "manifest_version": 3,
+  "name": "Alastre Local Inspector — SEO Local & GBP Audit",
+  "version": "2.0.0",
+  "description": "Auditoria instantânea de SEO Local e Google Business Profile para a Alastre Platform. Coleta fidedigna de perfis, avaliações e concorrência local no Google Maps.",
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "permissions": [
+    "storage",
+    "activeTab",
+    "tabs",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://*.google.com/*",
+    "https://*.google.com.br/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "https://*.alastre.digital/*",
+    "https://*.alastre.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.google.com/*",
+        "https://*.google.com.br/*"
+      ],
+      "js": [
+        "scripts/capture.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://*.google.com/*",
+        "https://*.google.com.br/*"
+      ],
+      "js": [
+        "scripts/extractor.js",
+        "scripts/local-score.js",
+        "scripts/content.js"
+      ],
+      "css": [
+        "styles/content.css"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*",
+        "https://*.alastre.digital/*",
+        "https://*.alastre.com/*"
+      ],
+      "js": [
+        "scripts/bridge.js"
+      ],
+      "run_at": "document_start"
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Alastre Local Inspector</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="popup-header">
+      <div class="brand">
+        <div class="brand-dot"></div>
+        <h1>Alastre Inspector</h1>
+      </div>
+      <span class="version-badge">v1.0.1</span>
+    </header>
+
+    <!-- Status Box -->
+    <div class="status-card" id="connection-status-card">
+      <div class="status-indicator">
+        <span class="pulse-dot" id="server-status-dot"></span>
+        <span class="status-text" id="server-status-text">Verificando plataforma...</span>
+      </div>
+      <p class="status-desc" id="server-status-desc">Pronto para auditar fichas no Google Maps e Busca.</p>
+    </div>
+
+    <!-- Test button directly on Google Maps -->
+    <button class="primary-test-btn" id="test-maps-btn">
+      <span>🗺️ Abrir Google Maps e Testar</span>
+      <span class="btn-arrow">➔</span>
+    </button>
+
+    <!-- Quick Shortcuts -->
+    <div class="section-title">Acesso Rápido — Alastre Platform</div>
+    <div class="action-grid">
+      <button class="shortcut-btn" id="open-platform-btn">
+        <span class="btn-icon">⚡</span>
+        <span class="btn-text">Painel Geral</span>
+      </button>
+      <button class="shortcut-btn" id="open-seo-btn">
+        <span class="btn-icon">📍</span>
+        <span class="btn-text">SEO Local</span>
+      </button>
+      <button class="shortcut-btn" id="open-clients-btn">
+        <span class="btn-icon">👥</span>
+        <span class="btn-text">Clientes</span>
+      </button>
+      <button class="shortcut-btn" id="open-search-btn">
+        <span class="btn-icon">🔍</span>
+        <span class="btn-text">Busca Google</span>
+      </button>
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions-card">
+      <div class="instructions-title">💡 Como Usar</div>
+      <ol class="instructions-list">
+        <li>Clique no botão acima para abrir o <strong>Google Maps</strong>.</li>
+        <li>Veja a aba <strong>Alastre Inspector</strong> na lateral direita da tela.</li>
+        <li>Veja as <strong>categorias secundárias</strong> e ranking direto nos cards.</li>
+        <li>Clique em <strong>"Auditar 🔍"</strong> para abrir o diagnóstico e gerar o pitch de vendas.</li>
+      </ol>
+    </div>
+
+    <!-- Configuration -->
+    <div class="config-section">
+      <label for="platform-url-input">URL da Alastre Platform:</label>
+      <div class="input-group">
+        <input type="text" id="platform-url-input" placeholder="http://localhost:5175">
+        <button id="save-url-btn">Salvar</button>
+      </div>
+      <span class="save-feedback" id="save-feedback"></span>
+    </div>
+
+    <!-- Footer -->
+    <footer class="popup-footer">
+      <span>Alastre Digital • Inteligência em Presença Local</span>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
