@@ -51,3 +51,23 @@ next-env.d.ts
 /graphify-out/.vocab.txt
 
 supabase/.temp/
+
+# Prospecting PoC binary and work dirs
+scripts/poc/bin/
+scripts/poc/work/
+*.exe
+
+# build cache & artifacts
+tsconfig.tsbuildinfo
+tmp/
+
+# scratch and logs
+*.log
+chrome_out.txt
+scratch-*.*
+scratch_*.*
+walkthrough.md
+
+# demo recordings (keep local)
+/videos/
+
