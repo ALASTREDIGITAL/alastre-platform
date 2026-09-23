@@ -13,6 +13,31 @@ Estas regras se aplicam exclusivamente à programação e à implementação té
 - Não execute ações destrutivas, altere migrations aplicadas, exclua dados, faça deploy, push, aplique migrations remotas ou publique Edge Functions sem autorização explícita.
 - O repositório é conectado ao Lovable: preserve o histórico publicado e mantenha a branch em estado funcional.
 
+## Autonomia de execução
+
+- Trabalhe de forma contínua até concluir a entrega solicitada. Não peça aprovação entre investigação, edição, testes, correções, documentação e commits locais relacionados ao mesmo escopo.
+- Faça escolhas técnicas reversíveis e coerentes com a arquitetura existente sem interromper o usuário por preferências menores.
+- Corrija problemas encontrados durante a validação quando estiverem diretamente ligados à entrega e não ampliarem materialmente o escopo.
+- Agrupe o trabalho em commits locais pequenos e funcionais quando isso melhorar recuperação e revisão.
+- Não pare apenas para apresentar plano, inventário, progresso parcial ou pedir revisão de mudanças locais seguras. Registre essas informações no relatório final.
+- Se uma validação falhar, diagnostique, corrija e execute novamente antes de solicitar ajuda.
+- Solicite decisão somente quando faltar uma escolha de negócio que altere materialmente o produto ou quando houver risco crítico que não possa ser mitigado de forma reversível.
+
+## Ações que exigem pausa
+
+Pause e solicite autorização antes de:
+
+- expor, criar, substituir ou rotacionar segredo ou credencial;
+- excluir ou alterar de forma irreversível dados reais;
+- executar migration destrutiva ou sem rollback razoável;
+- habilitar escrita externa ou publicar em Google, Meta ou outro provider;
+- ativar campanha, alterar orçamento ou responder/publicar em nome de cliente;
+- fazer deploy de produção;
+- reescrever histórico Git publicado ou usar force push;
+- executar ação com risco material de indisponibilidade, perda de dados ou isolamento entre tenants.
+
+Push comum sem force, criação de CI, mudanças locais, migrations novas versionadas, testes, builds e documentação não exigem pausa quando fazem parte da entrega solicitada e não envolvem os riscos acima.
+
 ## Arquitetura
 
 - `agency_id` é a fronteira de tenant. Toda leitura, escrita, consulta, cache, job, log, integração e auditoria deve respeitar a agência autenticada.

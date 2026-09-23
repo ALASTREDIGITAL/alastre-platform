@@ -117,3 +117,20 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
 - AppShell agora é fluido, sem `max-width` global, com gutters proporcionais e grids adaptativos até ultrawide.
 - Sidebar possui grupos recolhíveis, modo compacto persistido localmente, tooltip por item e desaparece em favor da navegação móvel abaixo de 821px.
 - Google Ads usa a largura adicional em uma composição 2/3 + 1/3; métricas, filas e cards aumentam o número de colunas conforme o espaço real.
+
+## Marco 00 — Fundação de Produção Concluída
+
+- **Higiene e Auditoria**: Histórico de 22 commits locais auditado e saneado contra exposição de segredos ou credenciais. Artefatos temporários e de desenvolvimento isolados via `.gitignore`.
+- **Scripts Multiplataforma**: Scripts de `build`, `lint` e `test` desacoplados de bash exclusivo de container, funcionando de maneira uniforme em Windows (desenvolvimento) e Linux (CI/produção).
+- **Estabilização da Suíte de Testes**: 175 testes em 31 suítes passando com 100% de sucesso. Concorrência controlada (`--test-concurrency=1`) e correção do carregamento de SSR no Vite evitaram deadlocks e colisões de portas.
+- **Pipeline de Qualidade (CI)**: Pipeline configurado no GitHub Actions (`.github/workflows/ci.yml`) para Node 22 LTS com bloqueio obrigatório para quebras de lockfile (`npm ci`), TypeScript (`tsc --noEmit`), ESLint (`npm run lint`), testes automatizados (`npm test`) e build (`npm run build`).
+- **Migrations de Homologação**: A migration `20260917144052_client_lifecycle_archive.sql` foi devidamente aplicada no Supabase Alastre Platform Homologação (`fifbtwbndutbvwnbzgtz`), alinhando o schema remoto com os modelos locais de arquivamento de clientes.
+- **Inventário de Edge Functions**:
+  - `alastre-google-ads-bridge`: Versão 30+ ativa em homologação; código versionado em `supabase/functions/alastre-google-ads-bridge`.
+  - `alastre-ga4-service`: Versionada em `supabase/functions/alastre-ga4-service`.
+  - `alastre-gtm-service`: Versionada em `supabase/functions/alastre-gtm-service`.
+  - `_shared/`: Bibliotecas utilitárias de autenticação e validação em `supabase/functions/_shared/`.
+- **Isolamento de Ambientes & Políticas**:
+  - Homologação: `fifbtwbndutbvwnbzgtz`.
+  - Futura Produção: Instância separada a ser provisionada quando da maturidade dos módulos de produto.
+  - `ALASTRE_WRITE_MODE` permanece estritamente `disabled`. Nenhuma escrita externa em Google ou Meta sem aprovação humana.
