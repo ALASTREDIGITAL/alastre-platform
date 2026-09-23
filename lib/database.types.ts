@@ -339,6 +339,414 @@ export type Database = {
           },
         ]
       }
+      product_definitions: {
+        Row: {
+          agency_id: string
+          approved_at: string | null
+          approved_by_actor_id: string | null
+          client_id: string | null
+          controllable_deliverables: Json
+          created_at: string
+          created_by_actor_id: string | null
+          external_results: Json
+          icp_description: string
+          id: string
+          influenciable_indicators: Json
+          is_immutable: boolean
+          name: string
+          slug: string
+          status: string
+          summary: string
+          superseded_by_id: string | null
+          target_market: string
+          target_objective: string
+          transformational_promise: string
+          anti_icp_description: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          agency_id: string
+          approved_at?: string | null
+          approved_by_actor_id?: string | null
+          client_id?: string | null
+          controllable_deliverables?: Json
+          created_at?: string
+          created_by_actor_id?: string | null
+          external_results?: Json
+          icp_description?: string
+          id: string
+          influenciable_indicators?: Json
+          is_immutable?: boolean
+          name: string
+          slug: string
+          status?: string
+          summary?: string
+          superseded_by_id?: string | null
+          target_market?: string
+          target_objective?: string
+          transformational_promise?: string
+          anti_icp_description?: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          agency_id?: string
+          approved_at?: string | null
+          approved_by_actor_id?: string | null
+          client_id?: string | null
+          controllable_deliverables?: Json
+          created_at?: string
+          created_by_actor_id?: string | null
+          external_results?: Json
+          icp_description?: string
+          id?: string
+          influenciable_indicators?: Json
+          is_immutable?: boolean
+          name?: string
+          slug?: string
+          status?: string
+          summary?: string
+          superseded_by_id?: string | null
+          target_market?: string
+          target_objective?: string
+          transformational_promise?: string
+          anti_icp_description?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_definitions_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_definitions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_discovery_sessions: {
+        Row: {
+          agency_id: string
+          answers: Json
+          completed_at: string | null
+          id: string
+          product_definition_id: string
+          questions: Json
+          round_number: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          agency_id: string
+          answers?: Json
+          completed_at?: string | null
+          id: string
+          product_definition_id: string
+          questions?: Json
+          round_number?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          agency_id?: string
+          answers?: Json
+          completed_at?: string | null
+          id?: string
+          product_definition_id?: string
+          questions?: Json
+          round_number?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_discovery_sessions_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_discovery_sessions_product_definition_id_fkey"
+            columns: ["product_definition_id"]
+            isOneToOne: false
+            referencedRelation: "product_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_scope_items: {
+        Row: {
+          acceptance_criteria: string
+          activity_name: string
+          agency_id: string
+          client_participation_required: boolean
+          created_at: string
+          default_role: string
+          delivery_type: string
+          dependencies: Json
+          description: string
+          estimated_minutes: number
+          frequency: string
+          id: string
+          is_automatable: boolean
+          product_definition_id: string
+          required_evidence: string
+          scope_classification: string
+          sort_order: number
+        }
+        Insert: {
+          acceptance_criteria?: string
+          activity_name: string
+          agency_id: string
+          client_participation_required?: boolean
+          created_at?: string
+          default_role?: string
+          delivery_type?: string
+          dependencies?: Json
+          description?: string
+          estimated_minutes?: number
+          frequency?: string
+          id: string
+          is_automatable?: boolean
+          product_definition_id: string
+          required_evidence?: string
+          scope_classification?: string
+          sort_order?: number
+        }
+        Update: {
+          acceptance_criteria?: string
+          activity_name?: string
+          agency_id?: string
+          client_participation_required?: boolean
+          created_at?: string
+          default_role?: string
+          delivery_type?: string
+          dependencies?: Json
+          description?: string
+          estimated_minutes?: number
+          frequency?: string
+          id?: string
+          is_automatable?: boolean
+          product_definition_id?: string
+          required_evidence?: string
+          scope_classification?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_scope_items_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_scope_items_product_definition_id_fkey"
+            columns: ["product_definition_id"]
+            isOneToOne: false
+            referencedRelation: "product_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_operational_sops: {
+        Row: {
+          agency_id: string
+          completion_criteria: string
+          created_at: string
+          errors_and_exceptions: Json
+          estimated_minutes: number
+          id: string
+          name: string
+          objective: string
+          prerequisites: Json
+          product_definition_id: string
+          quality_checklist: Json
+          required_evidence: string
+          responsible_role: string
+          scope_item_id: string | null
+          steps: Json
+          tools_required: Json
+          trigger: string
+        }
+        Insert: {
+          agency_id: string
+          completion_criteria?: string
+          created_at?: string
+          errors_and_exceptions?: Json
+          estimated_minutes?: number
+          id: string
+          name: string
+          objective?: string
+          prerequisites?: Json
+          product_definition_id: string
+          quality_checklist?: Json
+          required_evidence?: string
+          responsible_role?: string
+          scope_item_id?: string | null
+          steps?: Json
+          tools_required?: Json
+          trigger?: string
+        }
+        Update: {
+          agency_id?: string
+          completion_criteria?: string
+          created_at?: string
+          errors_and_exceptions?: Json
+          estimated_minutes?: number
+          id?: string
+          name?: string
+          objective?: string
+          prerequisites?: Json
+          product_definition_id?: string
+          quality_checklist?: Json
+          required_evidence?: string
+          responsible_role?: string
+          scope_item_id?: string | null
+          steps?: Json
+          tools_required?: Json
+          trigger?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_operational_sops_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_operational_sops_product_definition_id_fkey"
+            columns: ["product_definition_id"]
+            isOneToOne: false
+            referencedRelation: "product_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_raci_assignments: {
+        Row: {
+          activity_name: string
+          agency_id: string
+          created_at: string
+          id: string
+          is_future_role: boolean
+          product_definition_id: string
+          raci_type: string
+          role: string
+          scope_item_id: string | null
+        }
+        Insert: {
+          activity_name: string
+          agency_id: string
+          created_at?: string
+          id: string
+          is_future_role?: boolean
+          product_definition_id: string
+          raci_type: string
+          role: string
+          scope_item_id?: string | null
+        }
+        Update: {
+          activity_name?: string
+          agency_id?: string
+          created_at?: string
+          id?: string
+          is_future_role?: boolean
+          product_definition_id?: string
+          raci_type?: string
+          role?: string
+          scope_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_raci_assignments_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_raci_assignments_product_definition_id_fkey"
+            columns: ["product_definition_id"]
+            isOneToOne: false
+            referencedRelation: "product_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_viability_checkpoints: {
+        Row: {
+          agency_id: string
+          blocking_gaps: Json
+          calculated_at: string
+          critical_dependencies: Json
+          discovery_completeness_percentage: number
+          explanation: string
+          id: string
+          product_definition_id: string
+          result: string
+          total_recurring_monthly_hours: number
+          total_setup_hours: number
+          unvalidated_capacity_flags: Json
+          viability_score: number
+        }
+        Insert: {
+          agency_id: string
+          blocking_gaps?: Json
+          calculated_at?: string
+          critical_dependencies?: Json
+          discovery_completeness_percentage?: number
+          explanation?: string
+          id: string
+          product_definition_id: string
+          result?: string
+          total_recurring_monthly_hours?: number
+          total_setup_hours?: number
+          unvalidated_capacity_flags?: Json
+          viability_score?: number
+        }
+        Update: {
+          agency_id?: string
+          blocking_gaps?: Json
+          calculated_at?: string
+          critical_dependencies?: Json
+          discovery_completeness_percentage?: number
+          explanation?: string
+          id?: string
+          product_definition_id?: string
+          result?: string
+          total_recurring_monthly_hours?: number
+          total_setup_hours?: number
+          unvalidated_capacity_flags?: Json
+          viability_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_viability_checkpoints_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_viability_checkpoints_product_definition_id_fkey"
+            columns: ["product_definition_id"]
+            isOneToOne: false
+            referencedRelation: "product_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

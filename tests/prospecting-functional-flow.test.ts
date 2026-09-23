@@ -56,6 +56,9 @@ describe("Prospecting Functional Flow & Operator Integration (Requisitos 1 a 8)"
       windowsHide: true,
     });
 
+    serverChild.stdout?.on("data", () => {});
+    serverChild.stderr?.on("data", () => {});
+
     // 4. Aguarda o servidor inicializar e responder na porta 5175
     let ready = false;
     const maxAttempts = 120;
@@ -67,7 +70,7 @@ describe("Prospecting Functional Flow & Operator Integration (Requisitos 1 a 8)"
           break;
         }
       } catch {}
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 800));
     }
 
     assert.ok(
