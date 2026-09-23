@@ -29,14 +29,34 @@ export function isArrayOf<T>(guard: JsonGuard<T>): JsonGuard<T[]> {
   return (value): value is T[] => Array.isArray(value) && value.every(guard);
 }
 
+import { createSupabaseBrowserClient } from "./supabase";
+
 export const isObject: JsonGuard<Record<string, unknown>> = isRecord;
+
+async function getAuthHeader(): Promise<string | null> {
+  try {
+    const supabase = createSupabaseBrowserClient();
+    if (supabase) {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (token) return `Bearer ${token}`;
+    }
+  } catch {
+    // Ignore in SSR/tests/unconfigured environments
+  }
+  return null;
+}
 
 async function postJson<T>(url: string, body: Record<string, unknown>, guard: JsonGuard<T>, signal?: AbortSignal): Promise<T> {
   let response: Response;
   try {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    const auth = await getAuthHeader();
+    if (auth) headers["Authorization"] = auth;
+
     response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
       signal,
     });

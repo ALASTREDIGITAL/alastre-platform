@@ -70,6 +70,12 @@ export const HELP_CONTENT = {
     whyItMatters: "A posição varia conforme localização, horário e contexto.",
     nextStep: "Aguarde a conexão de um provedor de ranking real.",
   },
+  "client-journey": {
+    title: "Esteira do Cliente",
+    description: "Organiza o checklist operacional completo e o fluxo de trabalho do cliente.",
+    whyItMatters: "Permite acompanhar exatamente em que fase cada cliente está e agir diretamente na ferramenta certa.",
+    nextStep: "Percorra as atividades da esteira e clique no atalho para executar no sistema.",
+  },
 } as const;
 
 export type HelpKey = keyof typeof HELP_CONTENT;

@@ -1,5 +1,5 @@
 import type {ClientSummary} from "@/app/clients-module";
-import {buildLocalSeoWorkspace} from "./local-seo-data";
+import {buildLocalSeoWorkspace} from "./local-seo-data.ts";
 import type {LocalSeoDataSource,LocalSeoWorkspace} from "./local-seo-types";
 
 export interface LocalSeoDataProvider{

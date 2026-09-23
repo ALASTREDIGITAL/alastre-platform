@@ -41,13 +41,13 @@ export function GoogleAdsModule({ clientId, onSelectClient, onBack, onOpenConnec
     return()=>{controller.abort()};
   }, []);
 
-  const loadClients=useCallback(async(signal?:AbortSignal)=>{setLoadingClients(true);setUnavailable(false);try{const items=await postPlatform({action:"clients"},isClientSummaryArray,signal);if(signal?.aborted)return;setClients(items);const client=items.find(item=>item.id===clientId);const data=client?.dna?.business_data??{};const values=Array.isArray(data.cities)?data.cities.map(String).filter(Boolean):data.city?[String(data.city)]:[];setSelectedCities(values.length?values:clientId==="b10a1a00-0000-4000-8000-000000000001"?defaultCities:[])}catch(error){if(isRequestCancelled(error))return;setClients([]);setUnavailable(true)}finally{if(!signal?.aborted)setLoadingClients(false)}},[clientId]);
+  const loadClients=useCallback(async(signal?:AbortSignal)=>{setLoadingClients(true);setUnavailable(false);try{const items=await postPlatform({action:"clients"},isClientSummaryArray,signal);if(signal?.aborted)return;setClients(items);const targetId=items.some(item=>item.id===clientId)?clientId:items[0]?.id??"";if(targetId&&targetId!==clientId)onSelectClient(targetId);const client=items.find(item=>item.id===(targetId||clientId));const data=client?.dna?.business_data??{};const values=Array.isArray(data.cities)?data.cities.map(String).filter(Boolean):data.city?[String(data.city)]:[];setSelectedCities(values.length?values:defaultCities)}catch(error){if(isRequestCancelled(error))return;setClients([]);setUnavailable(true)}finally{if(!signal?.aborted)setLoadingClients(false)}},[clientId,onSelectClient]);
   useEffect(()=>{const controller=new AbortController();const timer=window.setTimeout(()=>void loadClients(controller.signal),0);return()=>{window.clearTimeout(timer);controller.abort()}},[loadClients]);
   const activeClient=clients.find(client=>client.id===clientId);
   const business=activeClient?.dna?.business_data??{};
   const clientName=activeClient?.name??"Cliente";
   const segment=String(business.segment??"serviço local");
-  const keywords=useMemo(()=>clientId==="b10a1a00-0000-4000-8000-000000000001"?defaultKeywords:[`${segment} em ${selectedCities[0]??"cidade"}`,`${segment} perto de mim`,`${segment} orçamento`,`${clientName} contato`],[clientId,clientName,segment,selectedCities]);
+  const keywords=useMemo(()=>{const rawServices=Array.isArray(business.services)?business.services.map(String).filter(Boolean):[];const city=selectedCities[0]??(typeof business.city==="string"?business.city:"região");if(rawServices.length>0){return[...rawServices.slice(0,4).map(s=>`${s.toLowerCase()} em ${city.toLowerCase()}`),`${segment.toLowerCase()} perto de mim`,`${clientName} orçamento`]}return[`${segment} em ${city}`,`${segment} perto de mim`,`${segment} orçamento`,`${clientName} contato`,`melhor ${segment} em ${city}`]},[business.services,business.city,clientName,segment,selectedCities]);
 
   const weeklyBudget = useMemo(() => {
     const daily = Number(budget.replace(",", ".")) || 0;

@@ -1,6 +1,6 @@
 import type { ClientSummary } from "@/app/clients-module";
 import type { GoogleProfileSnapshot, LocalScorePillar, LocalSeoWorkspace } from "./local-seo-types";
-import {localScoreWeights} from "./local-seo-v2-domain";
+import {localScoreWeights} from "./local-seo-v2-domain.ts";
 const pillarLabels:Array<[LocalScorePillar["key"],string]>=[["profile","Perfil"],["relevance","Relevância"],["reputation","Reputação"],["content","Conteúdo"],["authority","Autoridade"],["local_presence","Presença Local"],["conversion","Conversão"]];
 const text=(value:unknown)=>typeof value==="string"&&value.trim()?value.trim():null;
 const list=(value:unknown):string[]=>Array.isArray(value)?value.filter((item):item is string=>typeof item==="string"&&Boolean(item.trim())):[];

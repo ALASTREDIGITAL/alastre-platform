@@ -1,10 +1,11 @@
 import {NextRequest,NextResponse} from "next/server";
 import {connectionHubRequest,providers,statusCopy} from "@/lib/connection-hub-domain";
 import {checkGoogleConnectionHealth,createHubRuntime,googleConfigurationStatus,sanitizeError} from "@/lib/connection-hub/service";
+import {extractAuthenticatedEmail} from "@/lib/server-auth";
 const friendlyConnectionError=(code:string)=>code==="actor_forbidden"?"Você não possui acesso a esta organização.":code==="client_not_found"?"Cliente não encontrado nesta organização.":code==="resource_not_available"?"Este Perfil da Empresa não está disponível para vinculação.":"O Connection Hub está temporariamente indisponível.";
 export async function POST(request:NextRequest){
  try{
-  const email=request.headers.get("oai-authenticated-user-email")??(process.env.NODE_ENV==="development"?"ag.alastredigital@gmail.com":null);
+  const email=await extractAuthenticatedEmail(request);
   if(!email)return NextResponse.json({error:{code:"unauthenticated",message:"Acesso não identificado."}},{status:401});
   const parsed=connectionHubRequest.safeParse(await request.json());
   if(!parsed.success)return NextResponse.json({error:{code:"invalid_request",message:"Não foi possível entender esta solicitação."}},{status:400});

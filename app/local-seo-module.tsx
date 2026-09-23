@@ -11,6 +11,7 @@ import {
   MapPinned,
   RefreshCw,
   Search,
+  Sparkles,
   Star,
   Store,
   Target,
@@ -23,19 +24,24 @@ import { LocalScore } from "@/components/local-score";
 import {
   OpportunityOperations,
   PostOperations,
-  ReviewOperations,
+  ReviewOperationsAi,
 } from "@/components/local-seo-operations";
+import { ReviewAuditDashboard } from "@/components/review-audit-dashboard";
+import { BEM_FEITO_REDES_DEMO_SNAPSHOT } from "@/lib/local-seo-report-engine";
+import { inferCategoryFromName, type BusinessProfileSnapshot } from "@/lib/review-audit-analyzer";
 import {
   CompetitorsWorkspace,
   ExecutiveOverview,
   HistoryWorkspace,
   KeywordsWorkspace,
   ProfileAudit,
+  SeoStartGuide,
 } from "@/components/local-seo-v2";
 import { type ClientSummary } from "./clients-module";
 import { resolveLocalSeoDataProvider } from "@/lib/local-seo-data-provider";
 import type { LocalSeoSection } from "@/lib/local-seo-types";
-import { isRequestCancelled } from "@/lib/platform-api";
+import { isRequestCancelled, postPlatform } from "@/lib/platform-api";
+import { isClientSummaryArray } from "./clients-module";
 import { postLocalSeo } from "@/lib/local-seo-api";
 import { postLocalSeoV2 } from "@/lib/local-seo-v2-api";
 import { PageHeader } from "@/components/page-header";
@@ -114,6 +120,35 @@ export function LocalSeoModule({
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
   const [section, setSection] = useState<LocalSeoSection>("overview");
+  const [reviewsSubTab, setReviewsSubTab] = useState<"audit" | "operations">("audit");
+  const [autoOpenReport, setAutoOpenReport] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const search = new URLSearchParams(window.location.search);
+      const cName = search.get("client_name");
+      const auditSession = search.get("audit_session");
+      if (cName || auditSession) {
+        // Redireciona imediatamente para o módulo dedicado de Pré-Análise
+        const targetParams = new URLSearchParams(search);
+        targetParams.set("view", "pre-audit");
+        window.location.href = `/?${targetParams.toString()}`;
+        return;
+      }
+
+      const sec = search.get("section");
+      if (sec === "reviews" || sec === "reviews-audit") {
+        setSection("reviews");
+        setReviewsSubTab("audit");
+      }
+      if (search.get("open_report") === "true" || search.get("report") === "true") {
+        setSection("reviews");
+        setReviewsSubTab("audit");
+        setAutoOpenReport(true);
+      }
+    }
+  }, []);
+
   const [operations, setOperations] = useState<{
     posts: Array<Record<string, unknown>>;
     reviews: Array<Record<string, unknown>>;
@@ -134,8 +169,13 @@ export function LocalSeoModule({
       setLoading(true);
       setUnavailable(false);
       try {
-        const data = await postLocalSeoV2({ action: "clients" }, signal),
+        let raw: unknown[];
+        try {
+          raw = await postPlatform({ action: "clients" }, isClientSummaryArray, signal);
+        } catch {
+          const data = await postLocalSeoV2({ action: "clients" }, signal);
           raw = Array.isArray(data.clients) ? data.clients : [];
+        }
         const list = raw.filter(
           (item): item is ClientSummary =>
             !!item &&
@@ -239,10 +279,11 @@ export function LocalSeoModule({
       } catch (error) {
         if (!isRequestCancelled(error) && !signal?.aborted) {
           setV2(emptyV2);
+          const message = error instanceof Error ? error.message : "";
           setV2Error(
-            error instanceof Error
-              ? error.message
-              : "Dados operacionais indisponíveis.",
+            message === "Persistência interna indisponível."
+              ? ""
+              : message || "Dados operacionais indisponíveis.",
           );
         }
       }
@@ -317,15 +358,95 @@ export function LocalSeoModule({
     };
   }, [clientId]);
   const client = clients.find((item) => item.id === clientId) ?? null;
-  const workspace = useMemo(
-    () =>
-      client
-        ? resolveLocalSeoDataProvider({
-            googleConnected: gbpConnection === "connected",
-          }).load(client)
-        : null,
-    [client, gbpConnection],
-  );
+  const workspace = useMemo(() => {
+    if (!client) return null;
+    const base = resolveLocalSeoDataProvider({
+      googleConnected: gbpConnection === "connected",
+    }).load(client);
+
+    const verifiedChecks = v2.checks.filter((c) =>
+      ["ok", "attention", "critical"].includes(String(c.status)),
+    );
+    const latestSnapshot = v2.scores[0] as
+      | {
+          overall_score?: number;
+          confidence?: "high" | "medium" | "low" | "none";
+          state?: string;
+          version?: string;
+          calculated_at?: string;
+        }
+      | undefined;
+
+    if (verifiedChecks.length > 0 || latestSnapshot) {
+      const okChecks = v2.checks.filter((c) => c.status === "ok");
+      const attentionChecks = v2.checks.filter((c) => c.status === "attention");
+      const criticalChecks = v2.checks.filter((c) => c.status === "critical");
+
+      const profileScore =
+        latestSnapshot?.overall_score ??
+        Math.round(
+          (okChecks.length * 100 +
+            attentionChecks.length * 60 +
+            criticalChecks.length * 20) /
+            verifiedChecks.length,
+        );
+
+      const confidence: "medium" | "low" =
+        verifiedChecks.length >= 12 ? "medium" : "low";
+
+      const updatedPillars = base.score.pillars.map((pillar) => {
+        if (pillar.key === "profile") {
+          return {
+            ...pillar,
+            score: profileScore,
+            state: "partial" as const,
+            confidence,
+            signals: [
+              ...pillar.signals,
+              ...okChecks.map(
+                (c) => `Item OK: ${String(c.check_key).replace(/_/g, " ")}`,
+              ),
+            ],
+            issues: [
+              ...criticalChecks.map(
+                (c) => `Crítico: ${String(c.check_key).replace(/_/g, " ")}`,
+              ),
+              ...attentionChecks.map(
+                (c) => `Atenção: ${String(c.check_key).replace(/_/g, " ")}`,
+              ),
+            ],
+            recommendation:
+              criticalChecks.length > 0
+                ? `${criticalChecks.length} item(ns) crítico(s) na auditoria exigem correção.`
+                : attentionChecks.length > 0
+                  ? `${attentionChecks.length} item(ns) demandam atenção na auditoria.`
+                  : "Perfil auditado com evidências satisfatórias.",
+            likelyImpact:
+              "Aumenta a consistência e relevância do Perfil nos resultados locais.",
+          };
+        }
+        return pillar;
+      });
+
+      return {
+        ...base,
+        score: {
+          value: profileScore,
+          state: "partial" as const,
+          version: latestSnapshot?.version ?? "v2-manual",
+          pillars: updatedPillars,
+        },
+        provenance: {
+          ...base.provenance,
+          state: "partial" as const,
+          label: "Dados parciais auditados",
+          detail: `${verifiedChecks.length} verificações manuais registradas e validadas.`,
+        },
+      };
+    }
+
+    return base;
+  }, [client, gbpConnection, v2.checks, v2.scores]);
   const activeServices = v2.services
     .filter((row) => row.status === "active")
     .map((row) => String(row.service_key) as ClientServiceKey);
@@ -407,8 +528,22 @@ export function LocalSeoModule({
         </section>
       ) : <>
       <nav className="local-tabs local-tabs-primary" aria-label="Áreas de SEO Local">
-        {sections.filter((item) => ["overview", "profile", "reviews", "posts", "keywords", "competitors"].includes(item.id)).map((item) => {
+        {sections.map((item) => {
           const Icon = item.icon;
+          let countBadge: number | null = null;
+          if (item.id === "profile") {
+            countBadge = v2.checks.filter((c) => c.status === "ok").length;
+          } else if (item.id === "reviews") {
+            countBadge = operations.reviews.length;
+          } else if (item.id === "posts") {
+            countBadge = operations.posts.length;
+          } else if (item.id === "keywords") {
+            countBadge = v2.keywords.filter((k) => k.status !== "archived").length;
+          } else if (item.id === "competitors") {
+            countBadge = v2.competitors.filter((c) => c.status !== "archived").length;
+          } else if (item.id === "opportunities") {
+            countBadge = v2.opportunities.filter((o) => !["completed", "dismissed"].includes(String(o.status))).length;
+          }
           return (
             <button
               type="button"
@@ -418,6 +553,20 @@ export function LocalSeoModule({
             >
               <Icon />
               <span>{item.label}</span>
+              {typeof countBadge === "number" && countBadge > 0 ? (
+                <span
+                  style={{
+                    marginLeft: "4px",
+                    fontSize: "11px",
+                    padding: "1px 6px",
+                    borderRadius: "10px",
+                    background: "var(--color-bg-secondary, #333)",
+                    color: "var(--color-text-secondary, #ccc)",
+                  }}
+                >
+                  {countBadge}
+                </span>
+              ) : null}
             </button>
           );
         })}
@@ -455,29 +604,107 @@ export function LocalSeoModule({
           description="Cadastre ou conecte um cliente para iniciar o workspace de SEO Local."
         />
       ) : section === "overview" ? (
-        <ExecutiveOverview
-          workspace={workspace}
-          operations={{ ...operations, opportunities: v2.opportunities }}
-          googleStatus={
-            gbpConnection === "connected"
-              ? "Conectado"
-              : gbpConnection === "provider_pending"
-                ? "Aguardando liberação"
-                : "Não conectado"
-          }
-          onNavigate={setSection}
-          onOpenConnections={onOpenConnections}
-        />
-      ) : section === "score" ? (
-        <div>
-          <LocalScore workspace={workspace} />
-          <Button
-            onClick={() =>
-              void mutateV2({ action: "calculate_score", client_id: clientId })
+        <>
+          <SeoStartGuide workspace={workspace} keywordCount={v2.keywords.filter((row) => row.status !== "archived").length} onNavigate={setSection} />
+          <ExecutiveOverview
+            workspace={workspace}
+            operations={{ ...operations, opportunities: v2.opportunities }}
+            googleStatus={
+              gbpConnection === "connected"
+                ? "Conectado"
+                : gbpConnection === "provider_pending"
+                  ? "Aguardando liberação"
+                  : "Não conectado"
             }
-          >
-            Calcular score parcial
-          </Button>
+            onNavigate={setSection}
+            onOpenConnections={onOpenConnections}
+          />
+        </>
+      ) : section === "score" ? (
+        <div className="seo-operation">
+          <section className="operation-head">
+            <div>
+              <span className="section-kicker">ALASTRE LOCAL SCORE</span>
+              <h2>Saúde do Posicionamento Local</h2>
+              <p>
+                Diagnóstico explicável ponderado em 7 pilares fundamentais, com
+                transparência total de evidências.
+              </p>
+            </div>
+            <Button
+              onClick={() =>
+                void mutateV2({ action: "calculate_score", client_id: clientId })
+              }
+            >
+              <Sparkles /> Recalcular score com evidências
+            </Button>
+          </section>
+          <LocalScore workspace={workspace} />
+          {v2.scores.length > 0 && (
+            <section className="panel" style={{ marginTop: "16px" }}>
+              <div
+                className="audit-head"
+                style={{
+                  marginBottom: "12px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <span className="section-kicker">EVOLUÇÃO DO SCORE</span>
+                  <h3 style={{ margin: "4px 0" }}>Histórico de Snapshots</h3>
+                </div>
+                <small>{v2.scores.length} cálculo(s) registrado(s)</small>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                {v2.scores.slice(0, 5).map((snap, idx) => (
+                  <div
+                    key={String(snap.id ?? idx)}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "8px 12px",
+                      background: "var(--color-bg-secondary, #1a1a1a)",
+                      borderRadius: "6px",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <div>
+                      <strong>
+                        Nota {String(snap.overall_score ?? "N/D")}/100
+                      </strong>
+                      <span
+                        style={{
+                          marginLeft: "8px",
+                          color: "var(--color-text-secondary, #888)",
+                        }}
+                      >
+                        {String(snap.version ?? "v2")} · Confiança{" "}
+                        {String(snap.confidence ?? "low")}
+                      </span>
+                    </div>
+                    <small
+                      style={{ color: "var(--color-text-secondary, #888)" }}
+                    >
+                      {snap.calculated_at
+                        ? new Date(String(snap.calculated_at)).toLocaleString(
+                            "pt-BR",
+                          )
+                        : "Data não registrada"}
+                    </small>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       ) : section === "profile" ? (
         <ProfileAudit
@@ -488,7 +715,96 @@ export function LocalSeoModule({
           onSave={mutateV2}
         />
       ) : section === "reviews" ? (
-        <ReviewOperations rows={operations.reviews} />
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+            <div>
+              <span className="section-kicker">CENTRAL DE AVALIAÇÕES & REPUTAÇÃO</span>
+              <h2 className="text-lg font-bold text-foreground">Avaliações do Google</h2>
+            </div>
+            <div className="flex items-center gap-1 bg-muted p-1 rounded-lg border border-border">
+              <button
+                type="button"
+                onClick={() => setReviewsSubTab("audit")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  reviewsSubTab === "audit"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                📊 Análise & Auditoria (GBPCheck)
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewsSubTab("operations")}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  reviewsSubTab === "operations"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                💬 Respostas Assistidas por IA
+              </button>
+            </div>
+          </div>
+
+          {reviewsSubTab === "audit" ? (
+            <ReviewAuditDashboard
+              initialOpenReport={autoOpenReport}
+              isDemoMode={Boolean(autoOpenReport)}
+              initialSnapshot={
+                autoOpenReport
+                  ? BEM_FEITO_REDES_DEMO_SNAPSHOT
+                  : {
+                      name: workspace.clientName,
+                      category: workspace.profile?.primaryCategory || "Empresa Local",
+                      rating: typeof (workspace.profile as any)?.rating === "number" ? (workspace.profile as any).rating : 0,
+                      reviewsCount: operations.reviews.length,
+                      address: workspace.profile?.location || undefined,
+                      phone: workspace.profile?.phone || undefined,
+                      website: workspace.profile?.website || undefined,
+                    }
+              }
+              initialReviews={
+                operations.reviews.length > 0
+                  ? operations.reviews.map((r) => {
+                      const reply = operations.replies.find((rep) => rep.review_id === r.id);
+                      return {
+                        id: String(r.id),
+                        author: String(r.reviewer_name || "Cliente Google"),
+                        rating: Number(r.rating || 5),
+                        date: r.reviewed_at ? String(r.reviewed_at) : undefined,
+                        text: String(r.review_text || ""),
+                        ownerReply: reply ? { text: String(reply.body || "") } : undefined,
+                        isLocalGuide: Boolean(r.source_payload && (r.source_payload as any).is_local_guide),
+                      };
+                    })
+                  : undefined
+              }
+              onImportAsClient={(snap) => {
+                if (typeof window !== "undefined") {
+                  const params = new URLSearchParams({
+                    import: "inspector",
+                    name: snap.name,
+                    segment: snap.category || "",
+                    address: snap.address || "",
+                    phone: snap.phone || "",
+                    website: snap.website || "",
+                    rating: String(snap.rating),
+                    reviews_count: String(snap.reviewsCount),
+                  });
+                  window.location.href = `/?view=clients&${params.toString()}`;
+                }
+              }}
+            />
+          ) : (
+            <ReviewOperationsAi
+              clientId={clientId}
+              rows={operations.reviews}
+              replies={operations.replies}
+              onChanged={() => void loadOperations()}
+            />
+          )}
+        </div>
       ) : section === "posts" ? (
         <PostOperations
           clientId={clientId}
@@ -502,6 +818,7 @@ export function LocalSeoModule({
           clientId={clientId}
           rows={v2.keywords}
           onSave={mutateV2}
+          workspace={workspace}
         />
       ) : section === "competitors" ? (
         <CompetitorsWorkspace
@@ -510,24 +827,58 @@ export function LocalSeoModule({
           onSave={mutateV2}
         />
       ) : section === "opportunities" ? (
-        <>
-          <Button
-            onClick={() =>
-              void mutateV2({
-                action: "generate_opportunities",
-                client_id: clientId,
-              })
-            }
-          >
-            Gerar oportunidades por evidências
-          </Button>
-          <OpportunityOperations
-            rows={v2.opportunities}
-            onNavigate={setSection}
-          />
-        </>
+        <OpportunityOperations
+          rows={v2.opportunities}
+          clientId={clientId}
+          onNavigate={setSection}
+          onGenerate={() =>
+            mutateV2({
+              action: "generate_opportunities",
+              client_id: clientId,
+            })
+          }
+          onStatusChange={async (id, status) => {
+            await mutateV2({
+              action: "opportunity_status",
+              client_id: clientId,
+              id,
+              status,
+            });
+          }}
+        />
       ) : (
-        <HistoryWorkspace />
+        <HistoryWorkspace
+          rows={[
+            ...operations.posts.map((row) => ({
+              ...row,
+              history_kind: "postagem",
+            })),
+            ...operations.reviews.map((row) => ({
+              ...row,
+              history_kind: "avaliação",
+            })),
+            ...operations.replies.map((row) => ({
+              ...row,
+              history_kind: "resposta",
+            })),
+            ...v2.opportunities.map((row) => ({
+              ...row,
+              history_kind: "oportunidade",
+            })),
+            ...v2.scores.map((row) => ({
+              ...row,
+              history_kind: "score",
+              title: `Score calculado: ${row.overall_score}/100`,
+              created_at: row.calculated_at,
+            })),
+            ...v2.checks.map((row) => ({
+              ...row,
+              history_kind: "auditoria_perfil",
+              title: `Verificação: ${String(row.check_key).replace(/_/g, " ")} (${row.status})`,
+              created_at: row.updated_at ?? row.checked_at,
+            })),
+          ]}
+        />
       )}
       <Button
         className="refresh-inline"

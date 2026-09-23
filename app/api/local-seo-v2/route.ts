@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { serverEnv } from "@/lib/server-env";
 import { ConnectionHubRepository } from "@/lib/connection-hub/repository";
 import { createSupabaseAdmin } from "@/lib/connection-hub/supabase-admin";
+import { extractAuthenticatedEmail } from "@/lib/server-auth";
 import {
   calculatePartialScore,
   deterministicOpportunityRules,
@@ -11,11 +13,7 @@ export const dynamic = "force-dynamic";
 const roleCanWrite = (role: string) =>
   ["owner", "admin", "operator"].includes(role);
 export async function POST(request: Request) {
-  const email =
-    request.headers.get("oai-authenticated-user-email") ??
-    (process.env.NODE_ENV === "development"
-      ? "ag.alastredigital@gmail.com"
-      : null);
+  const email = await extractAuthenticatedEmail(request);
   if (!email)
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const parsed = localSeoV2Request.safeParse(
@@ -24,11 +22,12 @@ export async function POST(request: Request) {
   if (!parsed.success)
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   const db = createSupabaseAdmin();
-  if (!db)
-    return NextResponse.json(
-      { error: "persistence_not_configured" },
-      { status: 503 },
-    );
+  if (!db) {
+    const functionUrl = serverEnv("SUPABASE_GOOGLE_ADS_BRIDGE_URL"), bridgeSecret = serverEnv("ALASTRE_BRIDGE_SECRET");
+    if (!functionUrl || !bridgeSecret) return NextResponse.json({ error: "persistence_not_configured" }, { status: 503 });
+    const response = await fetch(functionUrl, { method:"POST", headers:{"Content-Type":"application/json","x-alastre-user-email":email,"x-alastre-bridge-secret":bridgeSecret,"x-alastre-write-mode":serverEnv("ALASTRE_WRITE_MODE")??"disabled"}, body:JSON.stringify({...parsed.data,action:`local_seo_v2_${parsed.data.action}`}) });
+    return new NextResponse(await response.text(), { status:response.status, headers:{"Content-Type":"application/json"} });
+  }
   try {
     const repository = new ConnectionHubRepository(db),
       actor = await repository.resolveActor(email),
@@ -277,6 +276,29 @@ export async function POST(request: Request) {
           status: input.status,
           source: input.source,
         },
+      );
+      return NextResponse.json({ item: result.data });
+    }
+    if (input.action === "opportunity_status") {
+      const result = await db
+        .from("local_seo_opportunities")
+        .update({
+          status: input.status,
+          updated_by_actor_id: actor.actorId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("agency_id", actor.agencyId)
+        .eq("client_id", input.client_id)
+        .eq("id", input.id)
+        .select()
+        .single();
+      if (result.error) throw new Error("opportunity_update_failed");
+      await repository.audit(
+        actor,
+        "opportunity.status_changed",
+        "local_seo_opportunity",
+        input.id,
+        { status: input.status },
       );
       return NextResponse.json({ item: result.data });
     }

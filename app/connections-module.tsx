@@ -19,12 +19,33 @@ import {
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { clientServiceCatalog } from "@/lib/client-services";
+import { createSupabaseBrowserClient } from "@/lib/supabase";
 import {
   googleCloudAdministration,
   providers,
   type ProviderAvailabilityStatus,
   type ProviderDefinition,
 } from "@/lib/connection-hub-domain";
+
+async function authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  try {
+    const supabase = createSupabaseBrowserClient();
+    if (supabase) {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (token && !headers.has("Authorization")) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+    }
+  } catch {
+    // Ignore
+  }
+  return fetch(url, { ...init, headers });
+}
 
 const icons = {
   google: Cloud,
@@ -133,13 +154,13 @@ function GoogleResources() {
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
       const [hubResponse, clientsResponse] = await Promise.all([
-        fetch("/api/connections", {
+        authFetch("/api/connections", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "connections" }),
           signal,
         }),
-        fetch("/api/platform", {
+        authFetch("/api/platform", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "clients" }),
@@ -193,7 +214,7 @@ function GoogleResources() {
     if (!clientId) return;
     setMessage("");
     try {
-      const response = await fetch("/api/connections", {
+      const response = await authFetch("/api/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -283,7 +304,7 @@ export function ConnectionsModule() {
     [googleConnected, setGoogleConnected] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/connections", {
+    void authFetch("/api/connections", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "providers" }),
@@ -309,7 +330,7 @@ export function ConnectionsModule() {
         setGoogleConnected(false);
         return;
       }
-      void fetch("/api/connections", {
+      void authFetch("/api/connections", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "connections" }),
@@ -350,7 +371,7 @@ export function ConnectionsModule() {
     setConnecting(true);
     setNotice("");
     try {
-      const response = await fetch("/api/connections/google/authorize", {
+      const response = await authFetch("/api/connections/google/authorize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ return_path: "/?view=connections" }),

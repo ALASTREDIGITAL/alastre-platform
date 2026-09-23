@@ -6,15 +6,33 @@ export type GoogleTokens={accessToken:string;refreshToken?:string;expiresAt:numb
 export type GoogleAccount={name:string;accountName:string;type?:string;role?:string};
 export type GoogleLocation={name:string;title:string;accountName:string;address?:string;phone?:string;website?:string;primaryCategory?:string;regularHours?:Record<string,unknown>;metadata?:Record<string,unknown>};
 type Fetcher=typeof fetch;
-export class GoogleProviderError extends Error{constructor(readonly code:string,readonly status:number,readonly reconnect=false){super(code);this.name="GoogleProviderError";}}
+export class GoogleProviderError extends Error{
+  readonly code:string;
+  readonly status:number;
+  readonly reconnect:boolean;
+  constructor(code:string,status:number,reconnect=false){
+    super(code);
+    this.name="GoogleProviderError";
+    this.code=code;
+    this.status=status;
+    this.reconnect=reconnect;
+  }
+}
 export class GoogleProviderAdapter{
- constructor(private readonly config:GoogleOAuthConfig,private readonly fetcher:Fetcher=fetch){}
+  private readonly config:GoogleOAuthConfig;
+  private readonly fetcher:Fetcher;
+  constructor(config:GoogleOAuthConfig,fetcher:Fetcher=fetch){
+    this.config=config;
+    this.fetcher=fetcher;
+  }
  createAuthorizationUrl(input:{state:string;codeChallenge:string}){const url=new URL(AUTH_URL);url.search=new URLSearchParams({client_id:this.config.clientId,redirect_uri:this.config.redirectUri,response_type:"code",scope:GOOGLE_BUSINESS_SCOPE,state:input.state,code_challenge:input.codeChallenge,code_challenge_method:"S256",access_type:"offline",include_granted_scopes:"true",prompt:"consent"}).toString();return url.toString();}
  async exchangeAuthorizationCode(code:string,verifier:string){return this.tokenRequest({code,code_verifier:verifier,grant_type:"authorization_code",redirect_uri:this.config.redirectUri});}
  async refreshAuthorization(refreshToken:string){return this.tokenRequest({refresh_token:refreshToken,grant_type:"refresh_token"});}
  async listAccounts(accessToken:string){const results:GoogleAccount[]=[];let pageToken="";do{const url=new URL(ACCOUNTS_URL);url.searchParams.set("pageSize","20");if(pageToken)url.searchParams.set("pageToken",pageToken);const body=await this.googleGet(url,accessToken);for(const raw of Array.isArray(body.accounts)?body.accounts:[]){if(!record(raw)||typeof raw.name!=="string")continue;results.push({name:raw.name,accountName:typeof raw.accountName==="string"?raw.accountName:raw.name,type:typeof raw.type==="string"?raw.type:undefined,role:typeof raw.role==="string"?raw.role:undefined});}pageToken=typeof body.nextPageToken==="string"?body.nextPageToken:"";}while(pageToken);return results;}
  async listBusinessLocations(accessToken:string,accountName:string){if(!/^accounts\/[A-Za-z0-9_-]+$/.test(accountName))throw new GoogleProviderError("invalid_account_resource",400);const results:GoogleLocation[]=[];let pageToken="";do{const url=new URL(`${BUSINESS_INFO_URL}/${accountName}/locations`);url.searchParams.set("pageSize","100");url.searchParams.set("readMask","name,title,storeCode,phoneNumbers,websiteUri,regularHours,categories,storefrontAddress,metadata");if(pageToken)url.searchParams.set("pageToken",pageToken);const body=await this.googleGet(url,accessToken);for(const raw of Array.isArray(body.locations)?body.locations:[]){if(!record(raw)||typeof raw.name!=="string"||typeof raw.title!=="string")continue;const address=record(raw.storefrontAddress)?[raw.storefrontAddress.addressLines,raw.storefrontAddress.locality,raw.storefrontAddress.administrativeArea].flat().filter(v=>typeof v==="string").join(", "):undefined;const categories=record(raw.categories)&&record(raw.categories.primaryCategory)?raw.categories.primaryCategory:undefined;const phones=record(raw.phoneNumbers)?raw.phoneNumbers:undefined;results.push({name:raw.name,title:raw.title,accountName,address:address||undefined,phone:phones&&typeof phones.primaryPhone==="string"?phones.primaryPhone:undefined,website:typeof raw.websiteUri==="string"?raw.websiteUri:undefined,primaryCategory:categories&&typeof categories.displayName==="string"?categories.displayName:undefined,regularHours:record(raw.regularHours)?sanitizeHours(raw.regularHours):undefined,metadata:record(raw.metadata)?sanitizeMetadata(raw.metadata):undefined});}pageToken=typeof body.nextPageToken==="string"?body.nextPageToken:"";}while(pageToken);return results;}
  async getBusinessLocation(accessToken:string,resourceName:string){if(!/^locations\/[A-Za-z0-9_-]+$/.test(resourceName))throw new GoogleProviderError("invalid_location_resource",400);const url=new URL(`${BUSINESS_INFO_URL}/${resourceName}`);url.searchParams.set("readMask","name,title,phoneNumbers,websiteUri,regularHours,categories,storefrontAddress,metadata");return this.googleGet(url,accessToken);}
+ async listLocalPosts(accessToken:string,locationResourceName:string){if(!/^locations\/[A-Za-z0-9_-]+$/.test(locationResourceName))throw new GoogleProviderError("invalid_location_resource",400);const url=new URL(`https://mybusiness.googleapis.com/v4/${locationResourceName}/localPosts`);const body=await this.googleGet(url,accessToken);return Array.isArray(body.localPosts)?body.localPosts:[];}
+ async listReviews(accessToken:string,locationResourceName:string){if(!/^locations\/[A-Za-z0-9_-]+$/.test(locationResourceName))throw new GoogleProviderError("invalid_location_resource",400);const url=new URL(`https://mybusiness.googleapis.com/v4/${locationResourceName}/reviews`);const body=await this.googleGet(url,accessToken);return Array.isArray(body.reviews)?body.reviews:[];}
  async healthCheck(accessToken:string){try{await this.listAccounts(accessToken);return {status:"connected" as const};}catch(error){if(error instanceof GoogleProviderError&&error.reconnect)return {status:"attention" as const,code:error.code};return {status:"error" as const,code:error instanceof GoogleProviderError?error.code:"provider_unavailable"};}}
  private async tokenRequest(input:Record<string,string>){const response=await this.fetcher(TOKEN_URL,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({...input,client_id:this.config.clientId,client_secret:this.config.clientSecret})});const body=await json(response);if(!response.ok||typeof body.access_token!=="string")throw translate(response.status,body);return {accessToken:body.access_token,refreshToken:typeof body.refresh_token==="string"?body.refresh_token:undefined,expiresAt:Date.now()+(typeof body.expires_in==="number"?body.expires_in:3600)*1000,scope:typeof body.scope==="string"?body.scope:GOOGLE_BUSINESS_SCOPE,tokenType:typeof body.token_type==="string"?body.token_type:"Bearer"} satisfies GoogleTokens;}
  private async googleGet(url:URL,accessToken:string){const response=await this.fetcher(url,{headers:{authorization:`Bearer ${accessToken}`,accept:"application/json"}});const body=await json(response);if(!response.ok)throw translate(response.status,body);return body;}

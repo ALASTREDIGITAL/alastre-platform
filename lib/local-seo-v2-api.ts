@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createSupabaseBrowserClient } from "./supabase.ts";
 const id = z.string().uuid(),
   text = (max: number) => z.string().trim().min(1).max(max),
   optionalText = (max: number) => z.string().trim().max(max).optional();
@@ -80,6 +81,19 @@ export const localSeoV2Request = z.discriminatedUnion("action", [
   }),
   client.extend({ action: z.literal("calculate_score") }),
   client.extend({ action: z.literal("generate_opportunities") }),
+  client.extend({
+    action: z.literal("opportunity_status"),
+    id: id,
+    status: z.enum([
+      "detected",
+      "analyzed",
+      "action_prepared",
+      "waiting_approval",
+      "in_progress",
+      "completed",
+      "dismissed",
+    ]),
+  }),
 ]);
 export type LocalSeoV2Request = z.infer<typeof localSeoV2Request>;
 
@@ -191,9 +205,23 @@ export async function postLocalSeoV2(
 ) {
   const parsed = localSeoV2Request.safeParse(input);
   if (!parsed.success) throw new Error("Dados inválidos.");
+  let authHeader: string | undefined;
+  try {
+    const supabase = createSupabaseBrowserClient();
+    if (supabase) {
+      const { data } = await supabase.auth.getSession();
+      const token = data?.session?.access_token;
+      if (token) authHeader = `Bearer ${token}`;
+    }
+  } catch {
+    // Ignore in non-browser or test environments
+  }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authHeader) headers["Authorization"] = authHeader;
+
   const response = await fetch("/api/local-seo-v2", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(parsed.data),
     signal,
   });

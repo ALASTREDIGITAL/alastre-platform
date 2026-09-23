@@ -12,7 +12,7 @@ export function PageHeader({
   eyebrow?: ReactNode;
   title: string;
   description: string;
-  helpKey: HelpKey;
+  helpKey?: HelpKey;
   actions?: ReactNode;
 }) {
   return (
@@ -24,7 +24,7 @@ export function PageHeader({
       </div>
       <div className="page-header-actions">
         {actions}
-        <HelpButton helpKey={helpKey} />
+        {helpKey && <HelpButton helpKey={helpKey} />}
       </div>
     </header>
   );

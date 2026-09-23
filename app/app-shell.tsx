@@ -18,9 +18,13 @@ import {
   Store,
   Users,
   Waypoints,
+  Images,
+  Kanban,
+  ScanSearch,
+  Compass,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ThemeSwitcher } from "./theme-switcher";
 import { GoogleAdsModule } from "./google-ads-module";
 import { ApprovalsModule } from "./approvals-module";
@@ -30,23 +34,62 @@ import { AgentWorkspace } from "./agent-workspace";
 import { OperationsModule } from "./operations-module";
 import { TrackingModule } from "./tracking-module";
 import { LocalSeoModule } from "./local-seo-module";
+import { PreAuditModule } from "./pre-audit-module";
+import { ProspectingModule } from "./prospecting-module";
 import { OverviewModule } from "./overview-module";
 import { ConnectionsModule } from "./connections-module";
 import { SkillsModule } from "./skills-module";
-type View =
+import { ImageGeotagModule } from "./image-geotag-module";
+import { ClientJourneyModule } from "./client-journey-module";
+import { ModulePlaceholder } from "@/components/module-placeholder";
+import { placeholderConfigs } from "@/components/placeholder-configs";
+import { useAuth } from "@/lib/auth-context";
+import { AgencyOnboardingModal } from "@/components/agency-onboarding-modal";
+export type View =
   | "overview"
   | "clients"
+  | "client-journey"
   | "dna"
+  | "prospecting"
+  | "pre-audit"
   | "local-seo"
   | "google-ads"
+  | "meta-ads"
   | "tracking"
+  | "image-geotag"
+  | "sites-seo"
+  | "reports"
+  | "commercial"
+  | "finance"
   | "agents"
   | "approvals"
   | "costs"
   | "audit"
   | "connections"
   | "skills";
-const views:View[]=["overview","clients","dna","local-seo","google-ads","tracking","agents","approvals","costs","audit","connections","skills"];
+const views: View[] = [
+  "overview",
+  "clients",
+  "client-journey",
+  "dna",
+  "prospecting",
+  "pre-audit",
+  "local-seo",
+  "google-ads",
+  "meta-ads",
+  "tracking",
+  "image-geotag",
+  "sites-seo",
+  "reports",
+  "commercial",
+  "finance",
+  "agents",
+  "approvals",
+  "costs",
+  "audit",
+  "connections",
+  "skills",
+];
 type NavItem = {
   label: string;
   icon: typeof Store;
@@ -66,7 +109,30 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
     label: "Clientes",
     items: [
       { label: "Clientes", icon: Users, view: "clients" },
+      { label: "Esteira do Cliente", icon: Kanban, view: "client-journey", featured: true },
       { label: "DNA e memória", icon: Fingerprint, view: "dna" },
+    ],
+  },
+  {
+    label: "Prospecção",
+    items: [
+      {
+        label: "Central de Prospecção",
+        icon: Compass,
+        view: "prospecting",
+        featured: true,
+      },
+    ],
+  },
+  {
+    label: "Auditoria",
+    items: [
+      {
+        label: "Pré-Análise",
+        icon: ScanSearch,
+        view: "pre-audit",
+        featured: true,
+      },
     ],
   },
   {
@@ -84,49 +150,118 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
     label: "Aquisição",
     items: [
       { label: "Google Ads", icon: Search, view: "google-ads" },
-      { label: "Meta Ads", icon: BarChart3 },
+      { label: "Meta Ads", icon: BarChart3, view: "meta-ads" },
       { label: "GTM e GA4", icon: Waypoints, view: "tracking" },
     ],
   },
   {
     label: "Conteúdo",
-    items: [{ label: "Sites & SEO", icon: Store }],
+    items: [
+      { label: "Geotag de imagens", icon: Images, view: "image-geotag" },
+      { label: "Sites & SEO", icon: Store, view: "sites-seo" },
+    ],
   },
   {
     label: "Gestão",
     items: [
-      { label: "Relatórios", icon: FileBarChart },
-      { label: "Comercial", icon: BriefcaseBusiness },
-      { label: "Financeiro", icon: CircleDollarSign },
+      { label: "Relatórios", icon: FileBarChart, view: "reports" },
+      { label: "Comercial", icon: BriefcaseBusiness, view: "commercial" },
+      { label: "Financeiro", icon: CircleDollarSign, view: "finance" },
       { label: "Custos", icon: CircleDollarSign, view: "costs" },
-      { label: "Auditoria", icon: ShieldCheck, view: "audit" },
+      { label: "Auditoria do Sistema", icon: ShieldCheck, view: "audit" },
+    ],
+  },
+  {
+    label: "Configurações",
+    items: [
+      { label: "Conexões", icon: Link2, view: "connections" },
+      { label: "Inteligência e Skills", icon: BrainCircuit, view: "skills" },
     ],
   },
 ];
-groups.push({
-  label: "Configurações",
-  items: [
-    { label: "Conexões", icon: Link2, view: "connections" },
-    { label: "Inteligência e Skills", icon: BrainCircuit, view: "skills" },
-  ],
-});
 const mobileItems = groups
   .flatMap((group) => group.items)
   .filter((item) => item.view);
 const viewLabels = Object.fromEntries(
   mobileItems.map((item) => [item.view, item.label]),
 ) as Partial<Record<View, string>>;
-export function AppShell({ userName }: { userName: string }) {
-  const [activeView, setActiveView] = useState<View>("overview");
+export function AppShell({ userName, initialView }: { userName: string; initialView?: string }) {
+  const { agency, actor, needsOnboarding } = useAuth();
+  const [activeView, setActiveView] = useState<View>(() => {
+    if (initialView && views.includes(initialView as View)) {
+      return initialView as View;
+    }
+    if (typeof window !== "undefined") {
+      const requested = new URLSearchParams(window.location.search).get("view");
+      if (requested && views.includes(requested as View)) {
+        return requested as View;
+      }
+    }
+    return "overview";
+  });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    "Operação": true,
+    "Prospecção": true,
+    "Auditoria": true,
+    "SEO Local": true,
+  });
   const [sidebarCompact, setSidebarCompact] = useState(false);
-  const [selectedClient, setSelectedClient] = useState(
-    "b10a1a00-0000-4000-8000-000000000001",
-  );
+  const [selectedClient, setSelectedClient] = useState("");
   const firstName = userName.includes("@") ? "Rodrigo" : userName.split(" ")[0];
+
+  const navigateToView = useCallback((view: View) => {
+    setActiveView(view);
+    const parentGroup = groups.find((g) => g.items.some((item) => item.view === view));
+    if (parentGroup) {
+      setOpenGroups((prev) => ({ ...prev, [parentGroup.label]: true }));
+    }
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("view", view);
+      window.history.pushState({ view }, "", url.toString());
+      const workspace = document.querySelector(".workspace");
+      if (workspace) {
+        workspace.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, []);
+
+  const toggleGroup = useCallback((groupLabel: string) => {
+    setOpenGroups((prev) => ({
+      ...prev,
+      [groupLabel]: !prev[groupLabel],
+    }));
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const requested = new URLSearchParams(window.location.search).get("view");
+      if (requested && views.includes(requested as View)) {
+        setActiveView(requested as View);
+        const parentGroup = groups.find((g) => g.items.some((item) => item.view === requested));
+        if (parentGroup) {
+          setOpenGroups((prev) => ({ ...prev, [parentGroup.label]: true }));
+        }
+      } else {
+        setActiveView("overview");
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const requested = new URLSearchParams(window.location.search).get("view");
-      if (requested && views.includes(requested as View)) setActiveView(requested as View);
+      if (requested && views.includes(requested as View)) {
+        setActiveView(requested as View);
+        const parentGroup = groups.find((g) => g.items.some((item) => item.view === requested));
+        if (parentGroup) {
+          setOpenGroups((prev) => ({ ...prev, [parentGroup.label]: true }));
+        }
+      }
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -138,81 +273,143 @@ export function AppShell({ userName }: { userName: string }) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const saved = window.localStorage.getItem("alastre.selectedClient");
+      if (saved) setSelectedClient(saved);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const selectClient = useCallback((id: string) => {
+    setSelectedClient(id);
+    window.localStorage.setItem("alastre.selectedClient", id);
+  }, []);
   const toggleSidebar = () => setSidebarCompact((current) => {
     const next = !current;
     window.localStorage.setItem("alastre.sidebar.compact", String(next));
     return next;
   });
   const content =
-    activeView === "skills" ? (
+    activeView === "prospecting" ? (
+      <ProspectingModule onNavigate={navigateToView} />
+    ) : activeView === "pre-audit" ? (
+      <PreAuditModule onNavigate={navigateToView} />
+    ) : activeView === "image-geotag" ? (
+      <ImageGeotagModule clientId={selectedClient} onSelectClient={selectClient} />
+    ) : activeView === "skills" ? (
       <SkillsModule />
     ) : activeView === "connections" ? (
       <ConnectionsModule />
     ) : activeView === "local-seo" ? (
       <LocalSeoModule
         clientId={selectedClient}
-        onSelectClient={setSelectedClient}
-        onOpenConnections={() => setActiveView("connections")}
+        onSelectClient={selectClient}
+        onOpenConnections={() => navigateToView("connections")}
       />
     ) : activeView === "google-ads" ? (
       <GoogleAdsModule
         clientId={selectedClient}
-        onSelectClient={setSelectedClient}
-        onBack={() => setActiveView("overview")}
-        onOpenConnections={() => setActiveView("connections")}
+        onSelectClient={selectClient}
+        onBack={() => navigateToView("overview")}
+        onOpenConnections={() => navigateToView("connections")}
       />
     ) : activeView === "tracking" ? (
       <TrackingModule
         clientId={selectedClient}
-        onSelectClient={setSelectedClient}
-        onOpenConnections={() => setActiveView("connections")}
+        onSelectClient={selectClient}
+        onOpenConnections={() => navigateToView("connections")}
       />
     ) : activeView === "clients" ? (
       <ClientsModule
         onOpenDna={(id) => {
           setSelectedClient(id);
-          setActiveView("dna");
+          navigateToView("dna");
         }}
         onOpenAgent={(id) => {
           setSelectedClient(id);
-          setActiveView("agents");
+          navigateToView("agents");
         }}
         onOpenLocalSeo={(id) => {
           setSelectedClient(id);
-          setActiveView("local-seo");
+          navigateToView("local-seo");
         }}
-        onOpenConnections={() => setActiveView("connections")}
+        onOpenJourney={(id) => {
+          setSelectedClient(id);
+          navigateToView("client-journey");
+        }}
+        onOpenConnections={() => navigateToView("connections")}
+      />
+    ) : activeView === "client-journey" ? (
+      <ClientJourneyModule
+        clientId={selectedClient}
+        onSelectClient={selectClient}
+        onNavigate={navigateToView}
       />
     ) : activeView === "dna" ? (
       <DnaModule
         clientId={selectedClient}
-        onOpenClients={() => setActiveView("clients")}
+        onOpenClients={() => navigateToView("clients")}
         onOpenAgent={(id) => {
           setSelectedClient(id);
-          setActiveView("agents");
+          navigateToView("agents");
+        }}
+        onOpenJourney={(id) => {
+          setSelectedClient(id);
+          navigateToView("client-journey");
         }}
       />
     ) : activeView === "agents" ? (
       <AgentWorkspace
         clientId={selectedClient}
-        onOpenClients={() => setActiveView("clients")}
+        onOpenClients={() => navigateToView("clients")}
         onOpenBuilder={(id) => {
           setSelectedClient(id);
-          setActiveView("google-ads");
+          navigateToView("google-ads");
         }}
+      />
+    ) : activeView === "meta-ads" ? (
+      <ModulePlaceholder
+        config={placeholderConfigs["meta-ads"]}
+        icon={BarChart3}
+        onNavigate={(view) => navigateToView(view as View)}
+      />
+    ) : activeView === "sites-seo" ? (
+      <ModulePlaceholder
+        config={placeholderConfigs["sites-seo"]}
+        icon={Store}
+        onNavigate={(view) => navigateToView(view as View)}
+      />
+    ) : activeView === "reports" ? (
+      <ModulePlaceholder
+        config={placeholderConfigs.reports}
+        icon={FileBarChart}
+        onNavigate={(view) => navigateToView(view as View)}
+      />
+    ) : activeView === "commercial" ? (
+      <ModulePlaceholder
+        config={placeholderConfigs.commercial}
+        icon={BriefcaseBusiness}
+        onNavigate={(view) => navigateToView(view as View)}
+      />
+    ) : activeView === "finance" ? (
+      <ModulePlaceholder
+        config={placeholderConfigs.finance}
+        icon={CircleDollarSign}
+        onNavigate={(view) => navigateToView(view as View)}
       />
     ) : activeView === "costs" ? (
       <OperationsModule mode="costs" />
     ) : activeView === "audit" ? (
       <OperationsModule mode="audit" />
     ) : activeView === "approvals" ? (
-      <ApprovalsModule onOpenConnections={() => setActiveView("connections")} />
+      <ApprovalsModule onOpenConnections={() => navigateToView("connections")} />
     ) : (
       <OverviewModule
         firstName={firstName}
-        onOpenLocalSeo={() => setActiveView("local-seo")}
-        onOpenApprovals={() => setActiveView("approvals")}
-        onOpenConnections={() => setActiveView("connections")}
+        onOpenLocalSeo={() => navigateToView("local-seo")}
+        onOpenApprovals={() => navigateToView("approvals")}
+        onOpenConnections={() => navigateToView("connections")}
+        onOpenClients={() => navigateToView("clients")}
       />
     );
   return (
@@ -230,8 +427,8 @@ export function AppShell({ userName }: { userName: string }) {
             />
           </div>
           <div className="brand-copy">
-            <strong>ALASTRE</strong>
-            <span>OPERAÇÕES</span>
+            <strong>{agency?.name ?? "ALASTRE"}</strong>
+            <span>{actor?.role ? `${actor.role.toUpperCase()} · OPERAÇÕES` : "OPERAÇÕES"}</span>
           </div>
         </div>
         <button type="button" className="sidebar-toggle" onClick={toggleSidebar} aria-label={sidebarCompact ? "Expandir menu lateral" : "Recolher menu lateral"} title={sidebarCompact ? "Expandir menu lateral" : "Recolher menu lateral"}>
@@ -241,30 +438,58 @@ export function AppShell({ userName }: { userName: string }) {
           </span>
         </button>
         <nav className="side-nav grouped-nav">
-          {groups.map((group) => (
-            <details className="nav-group" key={group.label} open={sidebarCompact || group.items.some((item) => item.view === activeView) || group.label === "Operação"}>
-              <summary className="nav-label">{group.label}</summary>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const active = item.view === activeView;
-                return (
-                  <button
-                    type="button"
-                    key={item.label}
-                    className={`nav-item${active ? " is-active" : ""}${item.featured ? " nav-featured" : ""}`}
-                    onClick={() => item.view && setActiveView(item.view)}
-                    disabled={!item.view}
-                    aria-current={active ? "page" : undefined}
-                    title={item.view ? item.label : `${item.label} — em breve`}
-                  >
-                    <Icon />
-                    <span>{item.label}</span>
-                    {!item.view && <span className="soon-label">Em breve</span>}
-                  </button>
-                );
-              })}
-            </details>
-          ))}
+          {groups.map((group) => {
+            const isOpen = sidebarCompact || (openGroups[group.label] ?? false);
+            const singleItem = group.items.length === 1 && group.items[0]?.view ? group.items[0] : null;
+            const hasActiveItem = group.items.some((item) => item.view === activeView);
+
+            return (
+              <div className="nav-group" key={group.label}>
+                <button
+                  type="button"
+                  className={`nav-group-header${hasActiveItem ? " group-has-active" : ""}`}
+                  onClick={() => {
+                    if (singleItem?.view) {
+                      navigateToView(singleItem.view);
+                      setOpenGroups((prev) => ({ ...prev, [group.label]: true }));
+                    } else {
+                      toggleGroup(group.label);
+                    }
+                  }}
+                  aria-expanded={isOpen}
+                  title={isOpen ? `Recolher ${group.label}` : `Expandir ${group.label}`}
+                >
+                  <span className="nav-label">{group.label}</span>
+                  <span className="nav-group-chevron" aria-hidden="true">
+                    {isOpen ? "−" : "+"}
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="nav-group-items">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = item.view === activeView;
+                      return (
+                        <button
+                          type="button"
+                          key={item.label}
+                          className={`nav-item${active ? " is-active" : ""}${item.featured ? " nav-featured" : ""}`}
+                          onClick={() => item.view && navigateToView(item.view)}
+                          disabled={!item.view}
+                          aria-current={active ? "page" : undefined}
+                          title={item.view ? item.label : `${item.label} — em breve`}
+                        >
+                          <Icon />
+                          <span>{item.label}</span>
+                          {!item.view && <span className="soon-label">Em breve</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
         <div className="sidebar-foot">
           <div className="security-line">
@@ -300,11 +525,11 @@ export function AppShell({ userName }: { userName: string }) {
           </div>
           <div className="topbar-actions">
             <ThemeSwitcher />
-            <div className="user-chip" title={userName}>
-              <span>{firstName.slice(0, 1).toUpperCase()}</span>
+            <div className="user-chip" title={actor?.email ?? userName}>
+              <span>{(actor?.email ?? firstName).slice(0, 1).toUpperCase()}</span>
               <div>
-                <strong>{firstName}</strong>
-                <small>Administrador</small>
+                <strong>{agency?.name ? `${firstName} · ${agency.name}` : firstName}</strong>
+                <small>{actor?.role ? actor.role.toUpperCase() : "Operador"}</small>
               </div>
             </div>
           </div>
@@ -318,7 +543,7 @@ export function AppShell({ userName }: { userName: string }) {
                 type="button"
                 key={item.label}
                 className={active ? "is-active" : ""}
-                onClick={() => item.view && setActiveView(item.view)}
+                onClick={() => item.view && navigateToView(item.view)}
                 aria-current={active ? "page" : undefined}
               >
                 <Icon />
@@ -329,6 +554,7 @@ export function AppShell({ userName }: { userName: string }) {
         </div>
         <div className="content-wrap">{content}</div>
       </main>
+      {needsOnboarding && <AgencyOnboardingModal />}
     </div>
   );
 }

@@ -9,4 +9,39 @@ export type LocalSeoSection = "overview"|"profile"|"score"|"reviews"|"posts"|"ke
 export type LocalSeoPostStatus = "idea"|"draft"|"review"|"waiting_approval"|"approved"|"ready_to_publish"|"published"|"rejected"|"changes_requested";
 export type LocalSeoReviewStatus = "new"|"response_suggested"|"review"|"approved"|"ready_to_respond"|"responded";
 export type LocalSeoOpportunityStatus = "detected"|"analyzed"|"action_prepared"|"waiting_approval"|"in_progress"|"completed"|"dismissed";
-export type LocalSeoPostDraft = {clientId:string;theme?:string;objective?:string;service?:string;locality?:string;primaryKeyword?:string;relatedKeywords:string[];cta?:string;body?:string;status:LocalSeoPostStatus;origin:"human"|"agent"|"opportunity"|"campaign"|"reused";author?:string;approvalId?:string;createdAt?:string;updatedAt?:string};
+export type LocalSeoPostType = "standard" | "offer" | "event";
+export type LocalSeoCtaAction = "NONE" | "LEARN_MORE" | "CALL" | "BOOK" | "ORDER" | "SHOP" | "SIGN_UP";
+export type SocialChannel = "gbp" | "instagram" | "facebook";
+export type ReviewSentiment = "positive" | "neutral" | "critical";
+
+export function getReviewSentiment(rating: number): ReviewSentiment {
+  return rating >= 4 ? "positive" : rating === 3 ? "neutral" : "critical";
+}
+
+export type LocalSeoPostDraft = {
+  clientId: string;
+  theme?: string;
+  objective?: string;
+  service?: string;
+  locality?: string;
+  primaryKeyword?: string;
+  relatedKeywords: string[];
+  cta?: string;
+  body?: string;
+  postType?: LocalSeoPostType;
+  ctaAction?: LocalSeoCtaAction;
+  ctaUrl?: string;
+  channels?: SocialChannel[];
+  offerTitle?: string;
+  couponCode?: string;
+  offerTerms?: string;
+  eventTitle?: string;
+  startDate?: string;
+  endDate?: string;
+  status: LocalSeoPostStatus;
+  origin: "human" | "agent" | "opportunity" | "campaign" | "reused";
+  author?: string;
+  approvalId?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
