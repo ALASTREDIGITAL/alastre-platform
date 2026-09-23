@@ -98,10 +98,6 @@ describe("Server Auth: Centralized & Defensive Authentication", () => {
 
   test("resolveOAuthCallbackActor busca sessão por state_hash e recupera ator legítimo", async () => {
     const mockState = "test-oauth-state-random-bytes-32-chars";
-    const expectedHash = hashOAuthState(mockState);
-
-    let queriedTable = "";
-    let queriedFilter = "";
 
     const sessionData = {
       id: "session-uuid-1",

@@ -1797,10 +1797,10 @@ export function DnaModule({
               </p>
 
               <div className="dna-preview-terminal">
-                <h4>// RESUMO OPERACIONAL COMPILADO</h4>
+                <h4>{"// RESUMO OPERACIONAL COMPILADO"}</h4>
                 <p style={{ color: "#38bdf8", marginBottom: "12px" }}>{promptPreview.summary}</p>
 
-                <h4>// REGRAS ATIVAS NO PROMPT DO AGENTE</h4>
+                <h4>{"// REGRAS ATIVAS NO PROMPT DO AGENTE"}</h4>
                 <ul style={{ margin: "0 0 16px", paddingLeft: "20px" }}>
                   {promptPreview.rules.map((r, i) => (
                     <li key={i} style={{ color: "#e2e8f0", marginBottom: "4px" }}>
@@ -1809,7 +1809,7 @@ export function DnaModule({
                   ))}
                 </ul>
 
-                <h4>// OBJETO DE CONTEXTO ALLOWLISTED (JSON)</h4>
+                <h4>{"// OBJETO DE CONTEXTO ALLOWLISTED (JSON)"}</h4>
                 <pre>{JSON.stringify(promptPreview.contextJson, null, 2)}</pre>
               </div>
             </article>

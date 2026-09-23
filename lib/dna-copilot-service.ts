@@ -7,7 +7,7 @@ function getEnv(name: string): string | undefined {
 }
 
 function cleanLocation(text: string): string {
-  let res = text.trim();
+  const res = text.trim();
   const emMatch = res.match(/em\s+([A-Za-zÀ-ÿ\s]+)$/i);
   if (emMatch && emMatch[1].trim().length >= 3) {
     return emMatch[1].trim();
@@ -16,7 +16,7 @@ function cleanLocation(text: string): string {
 }
 
 function cleanSegment(text: string): string {
-  let res = text.trim();
+  const res = text.trim();
   return res
     .replace(/\s+é\s+especializada.*$/i, "")
     .replace(/\s+em\s+.*$/i, "")
@@ -190,7 +190,7 @@ export async function handleDnaCopilotChat({
       if (res.ok) {
         const data = await res.json();
         const parts = data?.candidates?.[0]?.content?.parts ?? [];
-        const replyText = parts.map((p: any) => p.text || "").join("").trim();
+        const replyText = parts.map((p: { text?: string }) => p.text || "").join("").trim();
         if (replyText) {
           return { content: replyText, copilot_type: copilotType, provider: "gemini" };
         }
