@@ -16,6 +16,7 @@ const vite = await createServer({
   root,
   resolve: { alias: { "@": root } },
   server: { middlewareMode: true },
+  optimizeDeps: { noDiscovery: true },
 });
 
 after(async () => {

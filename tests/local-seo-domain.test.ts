@@ -1,7 +1,29 @@
-// @ts-expect-error Bun's test types are runtime-provided and not part of the app tsconfig.
-import {describe,expect,test} from "bun:test";
-import {canTransition,localSeoRequest} from "../lib/local-seo-domain";
-describe("SEO Local domain",()=>{
- test("permite somente transições explícitas",()=>{expect(canTransition("post","draft","waiting_approval")).toBe(true);expect(canTransition("post","draft","published")).toBe(false);expect(canTransition("reply","ready_to_respond","responded")).toBe(false)});
- test("rejeita identificadores e payloads inválidos",()=>{expect(localSeoRequest.safeParse({action:"local_seo_workspace",client_id:"qualquer"}).success).toBe(false);expect(localSeoRequest.safeParse({action:"local_seo_review_register",client_id:"00000000-0000-4000-8000-000000000000",payload:{rating:7,review_text:"x"}}).success).toBe(false)});
+import test, { describe } from "node:test";
+import assert from "node:assert/strict";
+import { canTransition, localSeoRequest } from "../lib/local-seo-domain.ts";
+
+describe("SEO Local domain", () => {
+  test("permite somente transições explícitas", () => {
+    assert.equal(canTransition("post", "draft", "waiting_approval"), true);
+    assert.equal(canTransition("post", "draft", "published"), false);
+    assert.equal(canTransition("reply", "ready_to_respond", "responded"), false);
+  });
+
+  test("rejeita identificadores e payloads inválidos", () => {
+    assert.equal(
+      localSeoRequest.safeParse({
+        action: "local_seo_workspace",
+        client_id: "qualquer",
+      }).success,
+      false,
+    );
+    assert.equal(
+      localSeoRequest.safeParse({
+        action: "local_seo_review_register",
+        client_id: "00000000-0000-4000-8000-000000000000",
+        payload: { rating: 7, review_text: "x" },
+      }).success,
+      false,
+    );
+  });
 });
