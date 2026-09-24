@@ -4,7 +4,8 @@ export type ActorContext={actorId:string;agencyId:string;role:"owner"|"admin"|"o
 export type AuthorizationSession={id:string;agency_id:string;initiated_by_actor_id:string;status:string;expires_at:string;pkce_credential_ref:string;return_path:string|null};
 const unwrap=<T>(data:T|null,error:{message:string}|null,code:string)=>{if(error||data===null)throw new Error(code);return data};
 export class ConnectionHubRepository{
- constructor(private readonly db:SupabaseClient){}
+ private readonly db:SupabaseClient;
+ constructor(db:SupabaseClient){this.db = db;}
  async resolveActor(email:string){const {data,error}=await this.db.rpc("platform_resolve_actor",{p_email:email.toLowerCase().trim()});const row=Array.isArray(data)?data[0]:data;if(error||!row||typeof row.actor_id!=="string"||typeof row.agency_id!=="string")throw new Error("actor_forbidden");return {actorId:row.actor_id,agencyId:row.agency_id,role:row.role} as ActorContext;}
  async createAuthorizationSession(input:{actor:ActorContext;stateHash:string;pkceReference:string;returnPath:string;expiresAt:string}){const {data,error}=await this.db.from("integration_authorization_sessions").insert({agency_id:input.actor.agencyId,provider:"google",initiated_by_actor_id:input.actor.actorId,state_hash:input.stateHash,pkce_credential_ref:input.pkceReference,return_path:input.returnPath,expires_at:input.expiresAt}).select("id").single();return unwrap(data,error,"authorization_session_create_failed");}
  async findAuthorizationSession(actor:ActorContext,stateHash:string){const {data,error}=await this.db.from("integration_authorization_sessions").select("id,agency_id,initiated_by_actor_id,status,expires_at,pkce_credential_ref,return_path").eq("agency_id",actor.agencyId).eq("provider","google").eq("state_hash",stateHash).maybeSingle();return unwrap(data,error,"authorization_session_invalid") as AuthorizationSession;}
