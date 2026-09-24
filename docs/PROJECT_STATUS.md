@@ -134,3 +134,31 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Homologação: `fifbtwbndutbvwnbzgtz`.
   - Futura Produção: Instância separada a ser provisionada quando da maturidade dos módulos de produto.
   - `ALASTRE_WRITE_MODE` permanece estritamente `disabled`. Nenhuma escrita externa em Google ou Meta sem aprovação humana.
+
+## Marco 01 — Fábrica de Produtos Concluída
+
+- **Domínio e Contratos**:
+  - `lib/product-factory-domain.ts`: Contratos versionados para `ProductDefinition`, `DiscoverySession`, `ProductScopeItem`, `OperationalSop`, `RaciAssignment` e `ViabilityCheckpoint`.
+  - Classificação estrita de informação: `fato`, `evidência`, `inferência`, `hipótese` e `lacuna`.
+  - Regra de no máximo 7 perguntas por rodada de descoberta operacional.
+  - Separação mandatória entre Implantação (setup) e Recorrência mensal (monthly).
+  - Suporte a papéis operacionais futuros no RACI sem distorcer cargos atuais.
+  - Salvaguarda rígida contra precificação prematura e promessas comerciais antes de viabilidade comprovada e revisão humana.
+- **Banco de Dados e Persistência**:
+  - Migration local `20260924100000_product_factory_foundation.sql` criando 6 tabelas com prefixo `product_`.
+  - RLS 100% ativo, tenant isolation por `agency_id`, grants de `anon`/`authenticated` revogados e acesso de backend restrito a `service_role`.
+  - Tipos atualizados em `lib/database.types.ts` e schema Drizzle em `db/schema.ts`.
+- **API Server-Side e Auditoria**:
+  - Endpoint `POST /api/product-factory` com 12 ações validadas por Zod.
+  - Logs estruturados em `audit_events` para todas as mutações relevantes.
+  - Submissão para revisão humana integrada à Central de Aprovações (`approval_items`).
+  - Imutabilidade garantida para versões aprovadas e geração controlada de nova versão `v+1`.
+- **Produto Canônico Inicial**:
+  - Pacote padrão "SEO Local e Google Business Profile" configurado com perguntas de descoberta, matriz de escopo completa, SOPs operacionais detalhados e matriz RACI.
+- **Interface e Navegação**:
+  - `app/product-factory-module.tsx` integrado ao `AppShell` no grupo **Produtos** com o ícone `PackagePlus`.
+  - Modo Simples como padrão com progressive disclosure para Modo Avançado.
+  - Registro de ajuda contextual em `lib/help-content.ts` (`product_factory.overview`).
+- **Suíte de Testes**:
+  - 4 novas suítes de testes (`tests/product-factory-*.test.ts`) totalizando 15 testes aprovados com 100% de sucesso.
+
