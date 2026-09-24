@@ -23,6 +23,7 @@ import {
   ScanSearch,
   Compass,
   PackagePlus,
+  UserCheck,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
@@ -44,6 +45,7 @@ import { ConnectionsModule } from "./connections-module";
 import { SkillsModule } from "./skills-module";
 import { ImageGeotagModule } from "./image-geotag-module";
 import { ClientJourneyModule } from "./client-journey-module";
+import { ClientOnboardingModule } from "./client-onboarding-module";
 import { ModulePlaceholder } from "@/components/module-placeholder";
 import { placeholderConfigs } from "@/components/placeholder-configs";
 import { useAuth } from "@/lib/auth-context";
@@ -53,6 +55,7 @@ export type View =
   | "product-factory"
   | "clients"
   | "client-journey"
+  | "client-onboarding"
   | "dna"
   | "prospecting"
   | "pre-audit"
@@ -76,6 +79,7 @@ const views: View[] = [
   "product-factory",
   "clients",
   "client-journey",
+  "client-onboarding",
   "dna",
   "prospecting",
   "pre-audit",
@@ -126,6 +130,7 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
     items: [
       { label: "Clientes", icon: Users, view: "clients" },
       { label: "Esteira do Cliente", icon: Kanban, view: "client-journey", featured: true },
+      { label: "Onboarding de Clientes", icon: UserCheck, view: "client-onboarding", featured: true },
       { label: "DNA e memória", icon: Fingerprint, view: "dna" },
     ],
   },
@@ -365,6 +370,8 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
         onSelectClient={selectClient}
         onNavigate={navigateToView}
       />
+    ) : activeView === "client-onboarding" ? (
+      <ClientOnboardingModule onNavigate={navigateToView} />
     ) : activeView === "dna" ? (
       <DnaModule
         clientId={selectedClient}

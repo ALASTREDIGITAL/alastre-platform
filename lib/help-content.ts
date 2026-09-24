@@ -113,6 +113,48 @@ export const HELP_CONTENT = {
     whyItMatters: "Uma oportunidade ganha não se torna cliente automaticamente. A operação confere e aprova cada item.",
     nextStep: "Preencha o checklist completo de alinhamento e envie para a revisão operacional.",
   },
+  "client_onboarding.overview": {
+    title: "Central de Onboarding",
+    description: "Converte uma venda aprovada em cliente operacional com acessos, contexto, baseline, responsabilidades e critérios de ativação claros.",
+    whyItMatters: "Garante que nenhum cliente seja ativado sem contexto operacional, baseline factual e conferência da venda.",
+    nextStep: "Selecione um cliente em onboarding para avançar suas etapas de implantação.",
+  },
+  "client_onboarding.sales_scope": {
+    title: "Conferência da Venda",
+    description: "Valida o escopo vendido contra o produto formal da Fábrica de Produtos e bloqueia promessas indevidas de ranking ou resultados externos.",
+    whyItMatters: "Impede desvios comerciais e protege a agência contra promessas não factíveis antes de criar o cliente.",
+    nextStep: "Revise os itens de escopo e aprove a conferência comercial ou registre divergência.",
+  },
+  "client_onboarding.company_units": {
+    title: "Empresa e Unidades",
+    description: "Cadastra e organiza a sede e filiais do cliente com tipo de atendimento (loja física ou área) e raio de cobertura em km.",
+    whyItMatters: "A presença local depende da localização exata de cada unidade e de suas áreas de atendimento geográficas.",
+    nextStep: "Confirme a unidade sede e adicione filiais adicionais se contratadas.",
+  },
+  "client_onboarding.requirements": {
+    title: "Requisitos e Coleta de Acessos",
+    description: "Acompanha o fornecimento de documentos, informações e acessos por parte do cliente com responsáveis, prazos e evidências.",
+    whyItMatters: "Permite transparência total sobre pendências do cliente e exige justificativa documentada para qualquer dispensa.",
+    nextStep: "Solicite os acessos pendentes ou valide os comprovantes enviados.",
+  },
+  "client_onboarding.baseline": {
+    title: "Baseline do Serviço",
+    description: "Fotografia inicial factual da presença do cliente antes do início da operação recorrente.",
+    whyItMatters: "Evita métricas inventadas ou zeros sintéticos, estabelecendo a base confiável para demonstrar evolução real.",
+    nextStep: "Preencha a auditoria de conteúdo, avaliações observadas e limitações de coleta.",
+  },
+  "client_onboarding.plan": {
+    title: "Plano de Implantação",
+    description: "Atividades de setup operacional derivadas do produto com tempos estimados em minutos e responsáveis atribuídos.",
+    whyItMatters: "Assegura que a virada de chave do cliente ocorra dentro do prazo contratado e sem sobrecarga operacional.",
+    nextStep: "Gere o plano de implantação e execute as tarefas de configuração inicial.",
+  },
+  "client_onboarding.readiness": {
+    title: "Critérios de Ativação",
+    description: "Checklist objetivo com 11 critérios de qualidade obrigatórios para autorizar a entrada na operação recorrente.",
+    whyItMatters: "Nenhum cliente entra na rotina sem acessos essenciais, DNA validado, baseline registrado e aprovação da liderança.",
+    nextStep: "Complete todas as pendências e submeta o onboarding para aprovação de ativação.",
+  },
 } as const;
 
 export type HelpKey = keyof typeof HELP_CONTENT;
