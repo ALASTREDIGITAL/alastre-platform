@@ -1,4 +1,11 @@
 export const HELP_CONTENT = {
+  "product_factory.overview": {
+    title: "Fábrica de Produtos",
+    description: "Estrutura conhecimento operacional em serviços executáveis antes de gerar preço, plano ou promessa.",
+    whyItMatters:
+      "Garante que escopo, tempo de implantação, recorrência, SOPs e viabilidade estejam provados com fatos e evidências reais.",
+    nextStep: "Inicie ou retome uma rodada de descoberta e complete a matriz de escopo.",
+  },
   "operations.overview": {
     title: "Central de Operações",
     description: "Reúne o que precisa de atenção em toda a agência.",

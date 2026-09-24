@@ -22,6 +22,7 @@ import {
   Kanban,
   ScanSearch,
   Compass,
+  PackagePlus,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
@@ -36,6 +37,7 @@ import { TrackingModule } from "./tracking-module";
 import { LocalSeoModule } from "./local-seo-module";
 import { PreAuditModule } from "./pre-audit-module";
 import { ProspectingModule } from "./prospecting-module";
+import { ProductFactoryModule } from "./product-factory-module";
 import { OverviewModule } from "./overview-module";
 import { ConnectionsModule } from "./connections-module";
 import { SkillsModule } from "./skills-module";
@@ -47,6 +49,7 @@ import { useAuth } from "@/lib/auth-context";
 import { AgencyOnboardingModal } from "@/components/agency-onboarding-modal";
 export type View =
   | "overview"
+  | "product-factory"
   | "clients"
   | "client-journey"
   | "dna"
@@ -69,6 +72,7 @@ export type View =
   | "skills";
 const views: View[] = [
   "overview",
+  "product-factory",
   "clients",
   "client-journey",
   "dna",
@@ -103,6 +107,17 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
       { label: "Visão geral", icon: LayoutDashboard, view: "overview" },
       { label: "Aprovações", icon: CheckCircle2, view: "approvals" },
       { label: "Agentes", icon: Bot, view: "agents" },
+    ],
+  },
+  {
+    label: "Produtos",
+    items: [
+      {
+        label: "Fábrica de Produtos",
+        icon: PackagePlus,
+        view: "product-factory",
+        featured: true,
+      },
     ],
   },
   {
@@ -201,6 +216,7 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
   });
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     "Operação": true,
+    "Produtos": true,
     "Prospecção": true,
     "Auditoria": true,
     "SEO Local": true,
@@ -290,7 +306,9 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
     return next;
   });
   const content =
-    activeView === "prospecting" ? (
+    activeView === "product-factory" ? (
+      <ProductFactoryModule onNavigate={navigateToView} />
+    ) : activeView === "prospecting" ? (
       <ProspectingModule onNavigate={navigateToView} />
     ) : activeView === "pre-audit" ? (
       <PreAuditModule onNavigate={navigateToView} />

@@ -6,13 +6,6 @@ import type {
   OperationalSop,
   RaciAssignment,
   ViabilityCheckpoint,
-  InformationClassification,
-  ProductStatus,
-  DeliveryType,
-  ScopeClassification,
-  ActivityFrequency,
-  RaciRole,
-  RaciType,
 } from "./product-factory-domain.ts";
 
 const id = z.string().trim().min(1).max(120);
@@ -252,16 +245,17 @@ export async function callProductFactoryApi<T = unknown>(
   });
 
   const raw = await response.text();
-  let json: any = null;
+  let json: Record<string, unknown> | null = null;
   try {
-    json = raw ? JSON.parse(raw) : null;
+    json = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
   } catch {
     throw new Error("Resposta inválida do servidor.");
   }
 
   if (!response.ok) {
-    throw new Error(json?.error || "Falha na operação da Fábrica de Produtos.");
+    const errorMsg = typeof json?.error === "string" ? json.error : "Falha na operação da Fábrica de Produtos.";
+    throw new Error(errorMsg);
   }
 
-  return json as T;
+  return json as unknown as T;
 }
