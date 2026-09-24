@@ -190,3 +190,36 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
     - `tests/commercial-crm-api.test.ts` (3 testes)
     - `tests/commercial-crm-navigation-and-ui.test.ts` (15 testes)
 
+## Marco 03 — Onboarding de Clientes Concluído
+
+- **Domínio e Contratos**:
+  - `lib/client-onboarding-domain.ts`: Contratos e regras para ciclo de vida de onboarding (12 estágios e tabela estrita de transições), conferência da venda (`validateSalesConference`) com salvaguarda contra promessas de resultado externo indevidas, geração canônica de 12 requisitos de coleta (`generateDefaultRequirements`), salvaguarda de baseline factual sem zeros sintéticos (`validateBaselineData`), geração de plano de implantação com tempos estimados em minutos derivados do produto (`generateImplementationPlanFromProduct`) e checklist de prontidão com 11 critérios objetivos (`calculateActivationChecklist`).
+  - Salvaguarda mandatória: Onboarding nunca deixa registros órfãos; criação de cliente, unidade sede, serviços e DNA é transacional e atômica.
+  - Apenas handoffs comerciais com status `approved_for_onboarding` podem iniciar o processo.
+  - Divergências comerciais bloqueiam a criação e a ativação do cliente com segurança.
+- **Banco de Dados e Persistência**:
+  - Migration `supabase/migrations/20260924120000_client_onboarding_foundation.sql` aplicada com sucesso no Supabase Homologação (`fifbtwbndutbvwnbzgtz`) via `npx supabase db push`.
+  - 6 novas tabelas criadas: `client_onboardings`, `client_units`, `client_onboarding_requirements`, `client_onboarding_baselines`, `client_onboarding_plans`, `client_onboarding_decisions`.
+  - Constraint `approval_items.source_type` atualizado para suportar `client_onboarding_activation`.
+  - RLS 100% ativo, grants de `anon`/`authenticated` revogados e acesso de backend restrito a `service_role` com constraints compostas de isolamento multi-tenant `(agency_id, parent_id)`.
+  - Supabase Security Advisors (`supabase db advisors --linked`): 0 erros e 0 alertas de segurança.
+  - Espelho de schema atualizado no Drizzle ORM (`db/schema.ts`).
+- **API Server-Side e Transações**:
+  - Endpoint `POST /api/client-onboarding` (`app/api/client-onboarding/route.ts`) com 16 ações validadas via Zod (`lib/client-onboarding-api.ts`).
+  - Criação transacional segura de cliente (`create_or_link_client_transactional`) com rollback defensivo.
+  - Bloqueio e registro de divergência (`record_divergence`) e gate de aprovação humana de ativação (`approve_activation`).
+- **Interface e Navegação**:
+  - `app/client-onboarding-module.tsx`: Central de Onboarding de Clientes com 10 abas operacionais (Visão Geral, Venda & Escopo, Empresa & Unidades, Informações, Acessos & Conexões, DNA, Baseline, Implantação, Prontidão e Histórico).
+  - Modo Simples como padrão com alternância fluida para Modo Avançado.
+  - Conectado ao `AppShell` no grupo **Clientes** com ícone `UserCheck` e destaque (`featured: true`).
+  - Ajuda contextual registrada em `lib/help-content.ts` cobrindo 7 tópicos operacionais.
+- **Suíte de Testes e Validação Completa**:
+  - 4 suítes automatizadas com 25 testes aprovados (`tests/client-onboarding-*.test.ts`):
+    - `tests/client-onboarding-domain.test.ts` (10 testes)
+    - `tests/client-onboarding-security.test.ts` (1 teste)
+    - `tests/client-onboarding-api.test.ts` (4 testes)
+    - `tests/client-onboarding-navigation-and-ui.test.ts` (10 testes)
+  - `tsc --noEmit`: 0 erros de compilação.
+  - `eslint`: 0 erros.
+  - `npm run build`: 100% aprovado com rota `/api/client-onboarding` compilada.
+
