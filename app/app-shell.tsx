@@ -38,6 +38,7 @@ import { LocalSeoModule } from "./local-seo-module";
 import { PreAuditModule } from "./pre-audit-module";
 import { ProspectingModule } from "./prospecting-module";
 import { ProductFactoryModule } from "./product-factory-module";
+import { CommercialModule } from "./commercial-module";
 import { OverviewModule } from "./overview-module";
 import { ConnectionsModule } from "./connections-module";
 import { SkillsModule } from "./skills-module";
@@ -180,7 +181,7 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
     label: "Gestão",
     items: [
       { label: "Relatórios", icon: FileBarChart, view: "reports" },
-      { label: "Comercial", icon: BriefcaseBusiness, view: "commercial" },
+      { label: "Comercial", icon: BriefcaseBusiness, view: "commercial", featured: true },
       { label: "Financeiro", icon: CircleDollarSign, view: "finance" },
       { label: "Custos", icon: CircleDollarSign, view: "costs" },
       { label: "Auditoria do Sistema", icon: ShieldCheck, view: "audit" },
@@ -220,6 +221,7 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
     "Prospecção": true,
     "Auditoria": true,
     "SEO Local": true,
+    "Gestão": true,
   });
   const [sidebarCompact, setSidebarCompact] = useState(false);
   const [selectedClient, setSelectedClient] = useState("");
@@ -404,11 +406,7 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
         onNavigate={(view) => navigateToView(view as View)}
       />
     ) : activeView === "commercial" ? (
-      <ModulePlaceholder
-        config={placeholderConfigs.commercial}
-        icon={BriefcaseBusiness}
-        onNavigate={(view) => navigateToView(view as View)}
-      />
+      <CommercialModule onNavigate={navigateToView} />
     ) : activeView === "finance" ? (
       <ModulePlaceholder
         config={placeholderConfigs.finance}

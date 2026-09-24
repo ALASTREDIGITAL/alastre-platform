@@ -30,6 +30,8 @@ import {
   HelpCircle,
   AlertCircle,
   RotateCcw,
+  ArrowRight,
+  Briefcase,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
@@ -1605,14 +1607,31 @@ export function ProspectingModule({ onNavigate }: ProspectingModuleProps = {}) {
                 </span>
               )}
 
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedLead(null)}
-              >
-                Fechar
-              </Button>
+              <div className="flex items-center gap-2">
+                {onNavigate && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs font-medium"
+                    onClick={() => {
+                      setSelectedLead(null);
+                      onNavigate("commercial");
+                    }}
+                  >
+                    <Briefcase className="w-3.5 h-3.5" />
+                    Abrir no Comercial & CRM
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedLead(null)}
+                >
+                  Fechar
+                </Button>
+              </div>
             </div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { spawn, type ChildProcess, execFile } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const BASE_URL = "http://127.0.0.1:5175";
+const BASE_URL = "http://127.0.0.1:5176";
 
 // Segredo efêmero exclusivo gerado dinamicamente para esta execução de teste
 const EPHEMERAL_TOKEN = `ephemeral-worker-secret-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -13,17 +13,24 @@ let originalEnvLocal: string | null = null;
 
 describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2 e 5)", () => {
   before(async () => {
-    // 1. Limpa qualquer processo que esteja ocupando a porta 5175
+    // 1. Limpa qualquer processo que esteja ocupando a porta 5176
     if (process.platform === "win32") {
       try {
-        const { stdout } = await execFileAsync("powershell", [
-          "-Command",
-          "Get-NetTCPConnection -LocalPort 5175 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess",
-        ]);
+        const { stdout } = await execFileAsync(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "Get-NetTCPConnection -LocalPort 5176 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess",
+          ],
+          { timeout: 3000 }
+        );
         const pids = stdout.trim().split(/\s+/).filter(Boolean);
         for (const pid of pids) {
           if (Number(pid) > 0) {
-            await execFileAsync("taskkill", ["/F", "/PID", pid]).catch(() => {});
+            await execFileAsync("taskkill.exe", ["/F", "/PID", pid], { timeout: 2000 }).catch(() => {});
           }
         }
       } catch {}
@@ -40,10 +47,11 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
     }
     const tokenLine = `\nPROSPECTING_WORKER_SECRET_TOKEN=${EPHEMERAL_TOKEN}\n`;
     await fs.writeFile(envLocalPath, (originalEnvLocal || "") + tokenLine, "utf8");
+    await new Promise((r) => setTimeout(r, 1000));
 
-    // 3. Inicia o servidor Vite na porta 5175 injetando o segredo efêmero estritamente via ambiente
+    // 3. Inicia o servidor Vite na porta 5176 injetando o segredo efêmero estritamente via ambiente
     const cmd = process.platform === "win32" ? "cmd.exe" : "npx";
-    const args = process.platform === "win32" ? ["/c", "npx.cmd vite --port 5175"] : ["vite", "--port", "5175"];
+    const args = process.platform === "win32" ? ["/c", "npx.cmd", "vite", "--port", "5176"] : ["vite", "--port", "5176"];
     serverChild = spawn(cmd, args, {
       cwd: process.cwd(),
       env: {
@@ -60,7 +68,7 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
       process.stderr.write(`[VITE-ERR] ${d.toString()}`);
     });
 
-    // 3. Aguarda o servidor inicializar e responder na porta 5175 (cold start no Windows pode levar ~45-60s)
+    // 3. Aguarda o servidor inicializar e responder na porta 5176 (cold start no Windows pode levar ~45-60s)
     let ready = false;
     const maxAttempts = 120; // até ~96 segundos
     for (let i = 0; i < maxAttempts; i++) {
@@ -82,7 +90,7 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
 
     assert.ok(
       ready,
-      "Servidor em 127.0.0.1:5175 deve inicializar com segredo efêmero e responder 401 para chamadas sem token"
+      "Servidor em 127.0.0.1:5176 deve inicializar com segredo efêmero e responder 401 para chamadas sem token"
     );
   });
 
@@ -91,7 +99,7 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
     if (serverChild && serverChild.pid) {
       if (process.platform === "win32") {
         try {
-          await execFileAsync("taskkill", ["/F", "/T", "/PID", String(serverChild.pid)]);
+          await execFileAsync("taskkill.exe", ["/F", "/T", "/PID", String(serverChild.pid)], { timeout: 2000 });
         } catch {}
       } else {
         try {

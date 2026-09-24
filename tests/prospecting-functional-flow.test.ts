@@ -16,14 +16,21 @@ describe("Prospecting Functional Flow & Operator Integration (Requisitos 1 a 8)"
     // 1. Limpa qualquer processo que esteja ocupando a porta 5175
     if (process.platform === "win32") {
       try {
-        const { stdout } = await execFileAsync("powershell", [
-          "-Command",
-          "Get-NetTCPConnection -LocalPort 5175 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess",
-        ]);
+        const { stdout } = await execFileAsync(
+          "powershell.exe",
+          [
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "Get-NetTCPConnection -LocalPort 5175 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess",
+          ],
+          { timeout: 3000 }
+        );
         const pids = stdout.trim().split(/\s+/).filter(Boolean);
         for (const pid of pids) {
           if (Number(pid) > 0) {
-            await execFileAsync("taskkill", ["/F", "/PID", pid]).catch(() => {});
+            await execFileAsync("taskkill.exe", ["/F", "/PID", pid], { timeout: 2000 }).catch(() => {});
           }
         }
       } catch {}
@@ -45,7 +52,7 @@ describe("Prospecting Functional Flow & Operator Integration (Requisitos 1 a 8)"
     const cmd = process.platform === "win32" ? "cmd.exe" : "npx";
     const args =
       process.platform === "win32"
-        ? ["/c", "npx.cmd vite --port 5175"]
+        ? ["/c", "npx.cmd", "vite", "--port", "5175"]
         : ["vite", "--port", "5175"];
     serverChild = spawn(cmd, args, {
       cwd: process.cwd(),
@@ -84,12 +91,12 @@ describe("Prospecting Functional Flow & Operator Integration (Requisitos 1 a 8)"
     if (serverChild && serverChild.pid) {
       if (process.platform === "win32") {
         try {
-          await execFileAsync("taskkill", [
+          await execFileAsync("taskkill.exe", [
             "/F",
             "/T",
             "/PID",
             String(serverChild.pid),
-          ]);
+          ], { timeout: 2000 });
         } catch {}
       } else {
         try {

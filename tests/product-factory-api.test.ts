@@ -316,4 +316,167 @@ describe("Módulo 01: Fábrica de Produtos - API Server-side", () => {
       Object.assign(process.env, { NODE_ENV: originalEnv });
     }
   });
+
+  it("impõe isolamento multiempresa e rejeita estritamente qualquer tentativa cross-tenant", async () => {
+    const originalEnv = process.env.NODE_ENV;
+    try {
+      Object.assign(process.env, { NODE_ENV: "development" });
+
+      const AGENCY_A = "00000000-0000-0000-0000-000000000001";
+      const AGENCY_B = "00000000-0000-0000-0000-000000000002";
+
+      // 1. Agência A cria um produto A
+      const createProdAReq = createMockRequest(
+        {
+          action: "create_product",
+          name: "Produto da Agência A",
+          slug: "produto-agencia-a",
+        },
+        { "x-alastre-agency-id": AGENCY_A },
+      );
+      const createProdARes = await POST(createProdAReq);
+      assert.equal(createProdARes.status, 200);
+      const prodAJson = await createProdARes.json();
+      const productAId = prodAJson.product.id;
+      assert.equal(prodAJson.product.agency_id, AGENCY_A);
+
+      // 2. Agência A salva um item de escopo legítimo no produto A
+      const scopeAId = `scope_${productAId}_1`;
+      const saveScopeAReq = createMockRequest(
+        {
+          action: "save_scope_items",
+          product_id: productAId,
+          items: [
+            {
+              id: scopeAId,
+              activity_name: "Atividade Exclusiva Agência A",
+              delivery_type: "setup",
+              frequency: "once",
+              default_role: "analyst",
+              estimated_minutes: 60,
+              is_automatable: false,
+              client_participation_required: false,
+              acceptance_criteria: "Critério A",
+              required_evidence: "Evidência A",
+              scope_classification: "included",
+            },
+          ],
+        },
+        { "x-alastre-agency-id": AGENCY_A },
+      );
+      const saveScopeARes = await POST(saveScopeAReq);
+      assert.equal(saveScopeARes.status, 200);
+
+      // 3. Agência B tenta ACESSAR o produto da Agência A -> DEVE FALHAR (404)
+      const getProdByBReq = createMockRequest(
+        {
+          action: "get_product",
+          product_id: productAId,
+        },
+        { "x-alastre-agency-id": AGENCY_B },
+      );
+      const getProdByBRes = await POST(getProdByBReq);
+      assert.equal(getProdByBRes.status, 404, "Agência B não pode visualizar produto da Agência A");
+
+      // 4. Agência B tenta MODIFICAR descoberta do produto da Agência A -> DEVE FALHAR (404)
+      const saveDiscoveryByBReq = createMockRequest(
+        {
+          action: "save_discovery_round",
+          product_id: productAId,
+          round_number: 1,
+          status: "completed",
+          questions: [],
+          answers: [],
+        },
+        { "x-alastre-agency-id": AGENCY_B },
+      );
+      const saveDiscoveryByBRes = await POST(saveDiscoveryByBReq);
+      assert.equal(saveDiscoveryByBRes.status, 404, "Agência B não pode alterar descoberta da Agência A");
+
+      // 5. Agência B tenta MODIFICAR escopo do produto da Agência A -> DEVE FALHAR (404)
+      const saveScopeByBReq = createMockRequest(
+        {
+          action: "save_scope_items",
+          product_id: productAId,
+          items: [],
+        },
+        { "x-alastre-agency-id": AGENCY_B },
+      );
+      const saveScopeByBRes = await POST(saveScopeByBReq);
+      assert.equal(saveScopeByBRes.status, 404, "Agência B não pode alterar escopo da Agência A");
+
+      // 6. Agência B tenta CALCULAR VIABILIDADE do produto da Agência A -> DEVE FALHAR (404)
+      const calcViabByBReq = createMockRequest(
+        {
+          action: "calculate_viability",
+          product_id: productAId,
+        },
+        { "x-alastre-agency-id": AGENCY_B },
+      );
+      const calcViabByBRes = await POST(calcViabByBReq);
+      assert.equal(calcViabByBRes.status, 404, "Agência B não pode calcular viabilidade da Agência A");
+
+      // 7. Agência B cria legitimamente seu próprio Produto B
+      const createProdBReq = createMockRequest(
+        {
+          action: "create_product",
+          name: "Produto da Agência B",
+          slug: "produto-agencia-b",
+        },
+        { "x-alastre-agency-id": AGENCY_B },
+      );
+      const createProdBRes = await POST(createProdBReq);
+      assert.equal(createProdBRes.status, 200);
+      const prodBJson = await createProdBRes.json();
+      const productBId = prodBJson.product.id;
+      assert.equal(prodBJson.product.agency_id, AGENCY_B);
+
+      // 8. Agência B tenta associar um SOP ao seu produto B usando o scope_item_id da Agência A -> DEVE FALHAR (400)
+      const saveSopCrossTenantReq = createMockRequest(
+        {
+          action: "save_sops",
+          product_id: productBId,
+          sops: [
+            {
+              name: "SOP Invasor",
+              scope_item_id: scopeAId, // Pertence à Agência A!
+              trigger: "Gatilho",
+              responsible_role: "analyst",
+              completion_criteria: "Critério",
+              required_evidence: "Evidência",
+            },
+          ],
+        },
+        { "x-alastre-agency-id": AGENCY_B },
+      );
+      const saveSopCrossTenantRes = await POST(saveSopCrossTenantReq);
+      assert.equal(saveSopCrossTenantRes.status, 400, "SOP não pode apontar para item de escopo de outra agência");
+      const sopCrossJson = await saveSopCrossTenantRes.json();
+      assert.match(sopCrossJson.error, /outra agência/);
+
+      // 9. Agência B tenta associar um RACI ao seu produto B usando o scope_item_id da Agência A -> DEVE FALHAR (400)
+      const saveRaciCrossTenantReq = createMockRequest(
+        {
+          action: "save_raci",
+          product_id: productBId,
+          assignments: [
+            {
+              activity_name: "Atividade Invasora",
+              scope_item_id: scopeAId, // Pertence à Agência A!
+              role: "analyst",
+              is_future_role: false,
+              raci_type: "R",
+            },
+          ],
+        },
+        { "x-alastre-agency-id": AGENCY_B },
+      );
+      const saveRaciCrossTenantRes = await POST(saveRaciCrossTenantReq);
+      assert.equal(saveRaciCrossTenantRes.status, 400, "RACI não pode apontar para item de escopo de outra agência");
+      const raciCrossJson = await saveRaciCrossTenantRes.json();
+      assert.match(raciCrossJson.error, /outra agência/);
+    } finally {
+      Object.assign(process.env, { NODE_ENV: originalEnv });
+    }
+  });
 });

@@ -747,6 +747,616 @@ export type Database = {
           },
         ]
       }
+      commercial_companies: {
+        Row: {
+          agency_id: string
+          cid: string | null
+          city: string | null
+          created_at: string
+          id: string
+          identity_key: string
+          maps_url: string | null
+          name: string
+          notes: string
+          observed_profile_quality: string
+          phone: string | null
+          place_id: string | null
+          rating: number | null
+          review_count: number | null
+          segment: string | null
+          state_uf: string | null
+          trade_name: string | null
+          units_count: number
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          agency_id: string
+          cid?: string | null
+          city?: string | null
+          created_at?: string
+          id: string
+          identity_key: string
+          maps_url?: string | null
+          name: string
+          notes?: string
+          observed_profile_quality?: string
+          phone?: string | null
+          place_id?: string | null
+          rating?: number | null
+          review_count?: number | null
+          segment?: string | null
+          state_uf?: string | null
+          trade_name?: string | null
+          units_count?: number
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          agency_id?: string
+          cid?: string | null
+          city?: string | null
+          created_at?: string
+          id?: string
+          identity_key?: string
+          maps_url?: string | null
+          name?: string
+          notes?: string
+          observed_profile_quality?: string
+          phone?: string | null
+          place_id?: string | null
+          rating?: number | null
+          review_count?: number | null
+          segment?: string | null
+          state_uf?: string | null
+          trade_name?: string | null
+          units_count?: number
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_companies_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commercial_contacts: {
+        Row: {
+          agency_id: string
+          company_id: string
+          created_at: string
+          email: string | null
+          id: string
+          is_decision_maker: boolean
+          is_primary: boolean
+          name: string
+          notes: string
+          phone: string | null
+          role_title: string
+        }
+        Insert: {
+          agency_id: string
+          company_id: string
+          created_at?: string
+          email?: string | null
+          id: string
+          is_decision_maker?: boolean
+          is_primary?: boolean
+          name: string
+          notes?: string
+          phone?: string | null
+          role_title?: string
+        }
+        Update: {
+          agency_id?: string
+          company_id?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_decision_maker?: boolean
+          is_primary?: boolean
+          name?: string
+          notes?: string
+          phone?: string | null
+          role_title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_contacts_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_contacts_company"
+            columns: ["agency_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_companies"
+            referencedColumns: ["agency_id", "id"]
+          },
+        ]
+      }
+      commercial_opportunities: {
+        Row: {
+          agency_id: string
+          blocking_reason: string | null
+          closed_at: string | null
+          company_id: string
+          created_at: string
+          estimated_mrr_value: number | null
+          estimated_setup_value: number | null
+          id: string
+          last_activity_at: string
+          loss_reason_code: string | null
+          loss_reason_details: string | null
+          next_action: string
+          next_action_deadline: string
+          origin: string
+          priority: string
+          product_definition_id: string | null
+          product_version: number
+          responsible_actor_id: string
+          responsible_name: string
+          stage: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          agency_id: string
+          blocking_reason?: string | null
+          closed_at?: string | null
+          company_id: string
+          created_at?: string
+          estimated_mrr_value?: number | null
+          estimated_setup_value?: number | null
+          id: string
+          last_activity_at?: string
+          loss_reason_code?: string | null
+          loss_reason_details?: string | null
+          next_action: string
+          next_action_deadline: string
+          origin?: string
+          priority?: string
+          product_definition_id?: string | null
+          product_version?: number
+          responsible_actor_id: string
+          responsible_name: string
+          stage?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string
+          blocking_reason?: string | null
+          closed_at?: string | null
+          company_id?: string
+          created_at?: string
+          estimated_mrr_value?: number | null
+          estimated_setup_value?: number | null
+          id?: string
+          last_activity_at?: string
+          loss_reason_code?: string | null
+          loss_reason_details?: string | null
+          next_action?: string
+          next_action_deadline?: string
+          origin?: string
+          priority?: string
+          product_definition_id?: string | null
+          product_version?: number
+          responsible_actor_id?: string
+          responsible_name?: string
+          stage?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_opportunities_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_opportunities_company"
+            columns: ["agency_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_companies"
+            referencedColumns: ["agency_id", "id"]
+          },
+        ]
+      }
+      commercial_assessments: {
+        Row: {
+          agency_id: string
+          assessed_at: string
+          assessed_by_actor_id: string
+          dimensions: Json
+          evidences: Json
+          explanation: string
+          fit_score: number | null
+          gaps: Json
+          hypotheses: Json
+          id: string
+          intent_score: number | null
+          opportunity_id: string
+          opportunity_score: number | null
+          priority_result: string | null
+          qualification_result: string | null
+          type: string
+        }
+        Insert: {
+          agency_id: string
+          assessed_at?: string
+          assessed_by_actor_id: string
+          dimensions?: Json
+          evidences?: Json
+          explanation?: string
+          fit_score?: number | null
+          gaps?: Json
+          hypotheses?: Json
+          id: string
+          intent_score?: number | null
+          opportunity_id: string
+          opportunity_score?: number | null
+          priority_result?: string | null
+          qualification_result?: string | null
+          type: string
+        }
+        Update: {
+          agency_id?: string
+          assessed_at?: string
+          assessed_by_actor_id?: string
+          dimensions?: Json
+          evidences?: Json
+          explanation?: string
+          fit_score?: number | null
+          gaps?: Json
+          hypotheses?: Json
+          id?: string
+          intent_score?: number | null
+          opportunity_id?: string
+          opportunity_score?: number | null
+          priority_result?: string | null
+          qualification_result?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_assessments_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_assessments_opp"
+            columns: ["agency_id", "opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_opportunities"
+            referencedColumns: ["agency_id", "id"]
+          },
+        ]
+      }
+      commercial_diagnoses: {
+        Row: {
+          agency_id: string
+          conducted_at: string
+          conducted_by_actor_id: string
+          decision: string
+          evidences: Json
+          expectations: string
+          id: string
+          next_steps: string
+          opportunity_id: string
+          red_flags: Json
+          risks: Json
+          step_answers: Json
+        }
+        Insert: {
+          agency_id: string
+          conducted_at?: string
+          conducted_by_actor_id: string
+          decision?: string
+          evidences?: Json
+          expectations?: string
+          id: string
+          next_steps?: string
+          opportunity_id: string
+          red_flags?: Json
+          risks?: Json
+          step_answers?: Json
+        }
+        Update: {
+          agency_id?: string
+          conducted_at?: string
+          conducted_by_actor_id?: string
+          decision?: string
+          evidences?: Json
+          expectations?: string
+          id?: string
+          next_steps?: string
+          opportunity_id?: string
+          red_flags?: Json
+          risks?: Json
+          step_answers?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_diagnoses_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_diagnoses_opp"
+            columns: ["agency_id", "opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_opportunities"
+            referencedColumns: ["agency_id", "id"]
+          },
+        ]
+      }
+      commercial_proposals: {
+        Row: {
+          agency_id: string
+          created_at: string
+          created_by_actor_id: string
+          decided_at: string | null
+          dependencies: Json
+          discount_counterpart: string | null
+          discount_justification: string | null
+          discount_monthly_percentage: number
+          discount_setup_percentage: number
+          expectations: Json
+          id: string
+          is_immutable: boolean
+          monthly_price: number
+          opportunity_id: string
+          payment_terms: string
+          product_definition_id: string
+          product_version: number
+          risks: Json
+          scope_adjustments: Json
+          selected_scope_items: Json
+          sent_at: string | null
+          setup_price: number
+          status: string
+          updated_at: string
+          valid_until: string
+          version: number
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          created_by_actor_id: string
+          decided_at?: string | null
+          dependencies?: Json
+          discount_counterpart?: string | null
+          discount_justification?: string | null
+          discount_monthly_percentage?: number
+          discount_setup_percentage?: number
+          expectations?: Json
+          id: string
+          is_immutable?: boolean
+          monthly_price?: number
+          opportunity_id: string
+          payment_terms?: string
+          product_definition_id: string
+          product_version?: number
+          risks?: Json
+          scope_adjustments?: Json
+          selected_scope_items?: Json
+          sent_at?: string | null
+          setup_price?: number
+          status?: string
+          updated_at?: string
+          valid_until: string
+          version?: number
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          created_by_actor_id?: string
+          decided_at?: string | null
+          dependencies?: Json
+          discount_counterpart?: string | null
+          discount_justification?: string | null
+          discount_monthly_percentage?: number
+          discount_setup_percentage?: number
+          expectations?: Json
+          id?: string
+          is_immutable?: boolean
+          monthly_price?: number
+          opportunity_id?: string
+          payment_terms?: string
+          product_definition_id?: string
+          product_version?: number
+          risks?: Json
+          scope_adjustments?: Json
+          selected_scope_items?: Json
+          sent_at?: string | null
+          setup_price?: number
+          status?: string
+          updated_at?: string
+          valid_until?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_proposals_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_proposals_opp"
+            columns: ["agency_id", "opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_opportunities"
+            referencedColumns: ["agency_id", "id"]
+          },
+        ]
+      }
+      commercial_activities: {
+        Row: {
+          actor_id: string
+          agency_id: string
+          cadence: string
+          completed_at: string | null
+          created_at: string
+          deadline: string
+          id: string
+          notes: string
+          objective: string
+          opportunity_id: string
+          status: string
+          title: string
+        }
+        Insert: {
+          actor_id: string
+          agency_id: string
+          cadence: string
+          completed_at?: string | null
+          created_at?: string
+          deadline: string
+          id: string
+          notes?: string
+          objective: string
+          opportunity_id: string
+          status?: string
+          title: string
+        }
+        Update: {
+          actor_id?: string
+          agency_id?: string
+          cadence?: string
+          completed_at?: string | null
+          created_at?: string
+          deadline?: string
+          id?: string
+          notes?: string
+          objective?: string
+          opportunity_id?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_activities_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_activities_opp"
+            columns: ["agency_id", "opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_opportunities"
+            referencedColumns: ["agency_id", "id"]
+          },
+        ]
+      }
+      commercial_sales_handoffs: {
+        Row: {
+          agency_id: string
+          checklist: Json
+          client_expectations: string
+          company_id: string
+          created_at: string
+          critical_dependencies: string
+          id: string
+          missing_data: string
+          operational_risks: string
+          operations_notes: string | null
+          operations_reviewer_actor_id: string | null
+          opportunity_id: string
+          promises_made: string
+          proposal_id: string
+          reviewed_at: string | null
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          agency_id: string
+          checklist?: Json
+          client_expectations?: string
+          company_id: string
+          created_at?: string
+          critical_dependencies?: string
+          id: string
+          missing_data?: string
+          operational_risks?: string
+          operations_notes?: string | null
+          operations_reviewer_actor_id?: string | null
+          opportunity_id: string
+          promises_made?: string
+          proposal_id: string
+          reviewed_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          agency_id?: string
+          checklist?: Json
+          client_expectations?: string
+          company_id?: string
+          created_at?: string
+          critical_dependencies?: string
+          id?: string
+          missing_data?: string
+          operational_risks?: string
+          operations_notes?: string | null
+          operations_reviewer_actor_id?: string | null
+          opportunity_id?: string
+          promises_made?: string
+          proposal_id?: string
+          reviewed_at?: string | null
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commercial_sales_handoffs_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_sales_handoffs_company"
+            columns: ["agency_id", "company_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_companies"
+            referencedColumns: ["agency_id", "id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_sales_handoffs_opp"
+            columns: ["agency_id", "opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_opportunities"
+            referencedColumns: ["agency_id", "id"]
+          },
+          {
+            foreignKeyName: "fk_commercial_sales_handoffs_proposal"
+            columns: ["agency_id", "proposal_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_proposals"
+            referencedColumns: ["agency_id", "id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

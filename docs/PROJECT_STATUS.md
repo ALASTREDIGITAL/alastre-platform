@@ -146,7 +146,8 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Salvaguarda rígida contra precificação prematura e promessas comerciais antes de viabilidade comprovada e revisão humana.
 - **Banco de Dados e Persistência**:
   - Migration local `20260924100000_product_factory_foundation.sql` criando 6 tabelas com prefixo `product_`.
-  - RLS 100% ativo, tenant isolation por `agency_id`, grants de `anon`/`authenticated` revogados e acesso de backend restrito a `service_role`.
+  - Hardening crítico de isolamento multiempresa: FKs compostas `(agency_id, parent_id)` referenciando `(agency_id, id)` e restrições únicas compostas em todas as tabelas filhas e clientes, impedindo que linhas pertençam a uma agência e referenciem produtos ou itens de outra.
+  - RLS 100% ativo, grants de `anon`/`authenticated` revogados e acesso de backend restrito a `service_role` (lembrando que policies `service_role using (true)` apenas confinam o acesso ao backend, sendo o isolamento de tenant garantido pelas constraints compostas e pela resolução do ator autenticado).
   - Tipos atualizados em `lib/database.types.ts` e schema Drizzle em `db/schema.ts`.
 - **API Server-Side e Auditoria**:
   - Endpoint `POST /api/product-factory` com 12 ações validadas por Zod.
@@ -161,4 +162,31 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Registro de ajuda contextual em `lib/help-content.ts` (`product_factory.overview`).
 - **Suíte de Testes**:
   - 4 novas suítes de testes (`tests/product-factory-*.test.ts`) totalizando 15 testes aprovados com 100% de sucesso.
+
+## Marco 02 — Comercial e CRM Concluído
+
+- **Domínio e Contratos**:
+  - `lib/commercial-crm-domain.ts`: Contratos e regras para pipeline (16 estágios com tabela estrita de transições), priorização (Fit, Intenção e Oportunidade separados), qualificação em 8 dimensões, diagnóstico de 11 passos, propostas vinculadas à Fábrica de Produtos, travas de imutabilidade, validação de desconto com contrapartida mandatória, justificativa obrigatória para motivo de perda por preço, checklist de handoff para onboarding e forecast em 3 cenários com premissas explícitas.
+  - Salvaguarda mandatória: Oportunidades ganhas (`closed_won`) e handoffs aprovados **não** criam clientes automaticamente no banco; a ativação operacional fica sob controle do futuro Módulo 03 (Onboarding).
+  - Nenhuma oportunidade pode ficar sem responsável, próxima ação e prazo definidos.
+  - Métricas com amostras insuficientes exibem explicitamente nota de insuficiência em vez de taxas sintéticas.
+- **Banco de Dados e Persistência**:
+  - Migration `supabase/migrations/20260924110000_commercial_crm_foundation.sql` criando 8 tabelas com isolamento multiempresa via FKs compostas `(agency_id, parent_id)`, RLS em todas as tabelas, revogação de acessos públicos/anônimos e restrição exclusiva a `service_role`.
+  - Constraints a nível de banco para próxima ação, prazo e justificativa de perda por preço.
+  - Sincronização em `db/schema.ts` (Drizzle ORM) e `lib/database.types.ts`.
+- **API Server-Side e Auditoria**:
+  - Endpoint `POST /api/commercial` (`app/api/commercial/route.ts`) com 19 ações validadas via Zod (`lib/commercial-crm-api.ts`).
+  - Registro de eventos em `audit_events` com isolamento por agência e proteção fail-secure.
+- **Interface e Navegação**:
+  - `app/commercial-module.tsx`: Central Comercial com 10 abas operacionais (Visão Geral, Pipeline Kanban, Oportunidades, Empresas, Qualificação, Diagnóstico, Propostas, Atividades, Inteligência, Forecast & Handoff).
+  - Alternância entre Modo Simples e Modo Avançado.
+  - Integração no `AppShell` no grupo **Gestão** com ícone `BriefcaseBusiness` e destaque.
+  - Botão de abertura rápida para o CRM integrado na gaveta de leads da Central de Prospecção (`app/prospecting-module.tsx`).
+  - Ajuda contextual registrada em `lib/help-content.ts` cobrindo visão geral, pipeline, qualificação, propostas e handoff.
+- **Suíte de Testes**:
+  - 4 suítes automatizadas com 31 testes aprovados (`tests/commercial-crm-*.test.ts`):
+    - `tests/commercial-crm-domain.test.ts` (12 testes)
+    - `tests/commercial-crm-security.test.ts` (1 teste)
+    - `tests/commercial-crm-api.test.ts` (3 testes)
+    - `tests/commercial-crm-navigation-and-ui.test.ts` (15 testes)
 

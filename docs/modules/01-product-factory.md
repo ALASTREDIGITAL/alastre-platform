@@ -66,11 +66,13 @@ O foco inicial é o produto canônico **SEO Local e Google Business Profile (GBP
   4. `product_operational_sops`: Procedimentos operacionais padronizados com checklists e desvios.
   5. `product_raci_assignments`: Matriz RACI com suporte a papéis operacionais futuros.
   6. `product_viability_checkpoints`: Histórico e snapshot de checkpoints calculados e bloqueios.
-- **Segurança de Dados**:
+- **Segurança de Dados e Isolamento Multi-Tenant**:
   - Row Level Security (RLS) habilitado em 100% das tabelas.
-  - Isolamento estrito por `agency_id`.
-  - Permissões de `anon` e `authenticated` revogadas no schema público.
-  - Acesso restrito e exclusivo para `service_role` no backend autenticado.
+  - Permissões de `anon` e `authenticated` revogadas no schema público; operações permitidas exclusivamente para `service_role`.
+  - **Atenção sobre RLS**: As policies `service_role using (true)` NÃO oferecem isolamento por tenant; elas apenas restringem o acesso ao backend confiável, impedindo clientes externos diretos.
+  - O isolamento multiempresa é garantido em profundidade por:
+    1. **Chaves estrangeiras compostas obrigatórias no banco**: `(agency_id, parent_id)` referenciando `(agency_id, id)` nas tabelas de produto, descoberta, escopo, SOPs, RACI, checkpoints e clientes, tornando estruturalmente impossível relacionar registros entre agências distintas no PostgreSQL.
+    2. **Resolução de Ator Server-Side**: Validação mandatória de `actor.agencyId` na camada de API em todas as rotas e queries, rejeitando qualquer tentativa de acesso cross-tenant.
 
 ---
 

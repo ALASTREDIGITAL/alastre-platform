@@ -25,6 +25,32 @@ const roleCanWrite = (role: string) =>
 // Memória local para testes e desenvolvimento offline
 const inMemoryStore = new Map<string, ProductWorkspaceData>();
 
+async function getAuthenticatedProduct(
+  productId: string,
+  agencyId: string,
+  db: ReturnType<typeof createSupabaseAdmin>,
+): Promise<{ product: ProductDefinition | null; error?: string; status?: number }> {
+  if (db) {
+    const { data, error } = await db
+      .from("product_definitions")
+      .select("*")
+      .eq("agency_id", agencyId)
+      .eq("id", productId)
+      .maybeSingle();
+
+    if (error || !data) {
+      return { product: null, error: "Produto não encontrado ou não pertencente à agência autenticada.", status: 404 };
+    }
+    return { product: data as unknown as ProductDefinition };
+  }
+
+  const item = inMemoryStore.get(productId);
+  if (!item || item.product.agency_id !== agencyId) {
+    return { product: null, error: "Produto não encontrado ou não pertencente à agência autenticada.", status: 404 };
+  }
+  return { product: item.product };
+}
+
 export async function POST(request: Request) {
   const email = await extractAuthenticatedEmail(request);
   if (!email) {
@@ -56,6 +82,14 @@ export async function POST(request: Request) {
       actor = await repository.resolveActor(email);
     } catch {
       // Falha segura ou fallback para desenvolvimento
+    }
+  }
+
+  // Em ambiente de teste/desenvolvimento, permite chavear a agência para testes automatizados multi-tenant
+  if (process.env.NODE_ENV !== "production") {
+    const testAgencyId = request.headers.get("x-alastre-agency-id");
+    if (testAgencyId) {
+      actor.agencyId = testAgencyId;
     }
   }
 
@@ -94,6 +128,22 @@ export async function POST(request: Request) {
   if (input.action === "create_product") {
     if (!roleCanWrite(actor.role)) {
       return Response.json({ error: "Permissão insuficiente." }, { status: 403 });
+    }
+
+    if (input.client_id && db) {
+      const { data: clientData, error: clientErr } = await db
+        .from("clients")
+        .select("id")
+        .eq("agency_id", actor.agencyId)
+        .eq("id", input.client_id)
+        .maybeSingle();
+
+      if (clientErr || !clientData) {
+        return Response.json(
+          { error: "Cliente inválido ou não pertencente à agência autenticada." },
+          { status: 400 },
+        );
+      }
     }
 
     const newProduct: ProductDefinition = {
@@ -248,6 +298,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const authCheck = await getAuthenticatedProduct(input.product_id, actor.agencyId, db);
+    if (!authCheck.product) {
+      return Response.json({ error: authCheck.error }, { status: authCheck.status });
+    }
+    if (authCheck.product.is_immutable) {
+      return Response.json(
+        { error: "Não é permitido alterar uma versão já aprovada ou imutável." },
+        { status: 400 },
+      );
+    }
+
     const sessionId = `sess_${input.product_id}_r${input.round_number}`;
     const sessionData: DiscoverySession = {
       id: sessionId,
@@ -305,6 +366,17 @@ export async function POST(request: Request) {
   if (input.action === "save_scope_items") {
     if (!roleCanWrite(actor.role)) {
       return Response.json({ error: "Permissão insuficiente." }, { status: 403 });
+    }
+
+    const authCheck = await getAuthenticatedProduct(input.product_id, actor.agencyId, db);
+    if (!authCheck.product) {
+      return Response.json({ error: authCheck.error }, { status: authCheck.status });
+    }
+    if (authCheck.product.is_immutable) {
+      return Response.json(
+        { error: "Não é permitido alterar uma versão já aprovada ou imutável." },
+        { status: 400 },
+      );
     }
 
     const items: ProductScopeItem[] = input.items.map((i, index) => ({
@@ -381,6 +453,48 @@ export async function POST(request: Request) {
       return Response.json({ error: "Permissão insuficiente." }, { status: 403 });
     }
 
+    const authCheck = await getAuthenticatedProduct(input.product_id, actor.agencyId, db);
+    if (!authCheck.product) {
+      return Response.json({ error: authCheck.error }, { status: authCheck.status });
+    }
+    if (authCheck.product.is_immutable) {
+      return Response.json(
+        { error: "Não é permitido alterar uma versão já aprovada ou imutável." },
+        { status: 400 },
+      );
+    }
+
+    const scopeIds = input.sops.map((s) => s.scope_item_id).filter(Boolean) as string[];
+    if (scopeIds.length > 0) {
+      if (db) {
+        const { data: scopes } = await db
+          .from("product_scope_items")
+          .select("id")
+          .eq("agency_id", actor.agencyId)
+          .eq("product_definition_id", input.product_id)
+          .in("id", scopeIds);
+
+        const validIds = new Set((scopes || []).map((s: any) => s.id));
+        const invalid = scopeIds.find((id) => !validIds.has(id));
+        if (invalid) {
+          return Response.json(
+            { error: `Item de escopo inválido ou pertencente a outra agência/produto: ${invalid}` },
+            { status: 400 },
+          );
+        }
+      } else {
+        const ws = inMemoryStore.get(input.product_id);
+        const validIds = new Set((ws?.scopeItems || []).map((s) => s.id));
+        const invalid = scopeIds.find((id) => !validIds.has(id));
+        if (invalid) {
+          return Response.json(
+            { error: `Item de escopo inválido ou pertencente a outra agência/produto: ${invalid}` },
+            { status: 400 },
+          );
+        }
+      }
+    }
+
     const sops: OperationalSop[] = input.sops.map((s, index) => ({
       id: s.id || `sop_${input.product_id}_${index + 1}`,
       agency_id: actor.agencyId,
@@ -452,6 +566,48 @@ export async function POST(request: Request) {
   if (input.action === "save_raci") {
     if (!roleCanWrite(actor.role)) {
       return Response.json({ error: "Permissão insuficiente." }, { status: 403 });
+    }
+
+    const authCheck = await getAuthenticatedProduct(input.product_id, actor.agencyId, db);
+    if (!authCheck.product) {
+      return Response.json({ error: authCheck.error }, { status: authCheck.status });
+    }
+    if (authCheck.product.is_immutable) {
+      return Response.json(
+        { error: "Não é permitido alterar uma versão já aprovada ou imutável." },
+        { status: 400 },
+      );
+    }
+
+    const scopeIds = input.assignments.map((r) => r.scope_item_id).filter(Boolean) as string[];
+    if (scopeIds.length > 0) {
+      if (db) {
+        const { data: scopes } = await db
+          .from("product_scope_items")
+          .select("id")
+          .eq("agency_id", actor.agencyId)
+          .eq("product_definition_id", input.product_id)
+          .in("id", scopeIds);
+
+        const validIds = new Set((scopes || []).map((s: any) => s.id));
+        const invalid = scopeIds.find((id) => !validIds.has(id));
+        if (invalid) {
+          return Response.json(
+            { error: `Item de escopo inválido ou pertencente a outra agência/produto: ${invalid}` },
+            { status: 400 },
+          );
+        }
+      } else {
+        const ws = inMemoryStore.get(input.product_id);
+        const validIds = new Set((ws?.scopeItems || []).map((s) => s.id));
+        const invalid = scopeIds.find((id) => !validIds.has(id));
+        if (invalid) {
+          return Response.json(
+            { error: `Item de escopo inválido ou pertencente a outra agência/produto: ${invalid}` },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     const raci: RaciAssignment[] = input.assignments.map((r, index) => ({
@@ -532,8 +688,8 @@ export async function POST(request: Request) {
       };
     }
 
-    if (!ws) {
-      return Response.json({ error: "Produto não encontrado." }, { status: 404 });
+    if (!ws || ws.product.agency_id !== actor.agencyId) {
+      return Response.json({ error: "Produto não encontrado ou não pertencente à agência autenticada." }, { status: 404 });
     }
 
     const viability = calculateViabilityCheckpoint({
@@ -614,8 +770,8 @@ export async function POST(request: Request) {
       };
     }
 
-    if (!ws) {
-      return Response.json({ error: "Produto não encontrado." }, { status: 404 });
+    if (!ws || ws.product.agency_id !== actor.agencyId) {
+      return Response.json({ error: "Produto não encontrado ou não pertencente à agência autenticada." }, { status: 404 });
     }
 
     // Calcula ou valida o checkpoint de viabilidade
@@ -709,8 +865,8 @@ export async function POST(request: Request) {
       }
     }
 
-    if (!ws) {
-      return Response.json({ error: "Produto não encontrado." }, { status: 404 });
+    if (!ws || ws.product.agency_id !== actor.agencyId) {
+      return Response.json({ error: "Produto não encontrado ou não pertencente à agência autenticada." }, { status: 404 });
     }
 
     if (ws.product.status !== "approved") {
@@ -787,6 +943,11 @@ export async function POST(request: Request) {
   if (input.action === "archive_product") {
     if (!roleCanWrite(actor.role)) {
       return Response.json({ error: "Permissão insuficiente." }, { status: 403 });
+    }
+
+    const authCheck = await getAuthenticatedProduct(input.product_id, actor.agencyId, db);
+    if (!authCheck.product) {
+      return Response.json({ error: authCheck.error }, { status: authCheck.status });
     }
 
     if (db) {

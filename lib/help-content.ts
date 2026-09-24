@@ -83,6 +83,36 @@ export const HELP_CONTENT = {
     whyItMatters: "Permite acompanhar exatamente em que fase cada cliente está e agir diretamente na ferramenta certa.",
     nextStep: "Percorra as atividades da esteira e clique no atalho para executar no sistema.",
   },
+  "commercial.overview": {
+    title: "Central Comercial & CRM",
+    description: "Gerencia a esteira de atração e vendas desde a empresa identificada até o handoff aprovado para onboarding.",
+    whyItMatters: "Garante rastreabilidade total, responsabilidade atribuída e impede promessas comerciais sem base na Fábrica de Produtos.",
+    nextStep: "Acompanhe as atenções de hoje e oportunidades que necessitam de próxima ação.",
+  },
+  "commercial.pipeline": {
+    title: "Pipeline Comercial",
+    description: "Fluxo de estágios que orienta o ciclo de vendas com critérios rígidos de entrada e saída.",
+    whyItMatters: "Nenhuma oportunidade pode ficar sem responsável, próxima ação e prazo definidos.",
+    nextStep: "Avance as oportunidades conforme reuniões e marcos confirmados.",
+  },
+  "commercial.qualification": {
+    title: "Qualificação de Oportunidades",
+    description: "Avaliação objetiva de fit, problema, impacto, capacidade de investimento e expectativas.",
+    whyItMatters: "Impede o avanço de clientes com expectativas irreais de posicionamento ou sem orçamento viável.",
+    nextStep: "Registre as respostas e evidências do cliente antes de agendar diagnóstico.",
+  },
+  "commercial.proposals": {
+    title: "Propostas Comerciais",
+    description: "Orçamentos formais vinculados diretamente a produtos aprovados da Fábrica de Produtos.",
+    whyItMatters: "Torna a proposta estritamente imutável após envio e exige contrapartida e justificativa para descontos.",
+    nextStep: "Monte a proposta com base no escopo acordado e submeta para revisão interna.",
+  },
+  "commercial.handoff": {
+    title: "Handoff para Onboarding",
+    description: "Passagem de bastão obrigatória da equipe de vendas para a equipe de operações.",
+    whyItMatters: "Uma oportunidade ganha não se torna cliente automaticamente. A operação confere e aprova cada item.",
+    nextStep: "Preencha o checklist completo de alinhamento e envie para a revisão operacional.",
+  },
 } as const;
 
 export type HelpKey = keyof typeof HELP_CONTENT;
