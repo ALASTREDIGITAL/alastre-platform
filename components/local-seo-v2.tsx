@@ -1,20 +1,103 @@
 "use client";
-import {useState} from "react";
-import {ArrowRight,CalendarDays,CheckCircle2,Clock3,FileSearch,Lightbulb,Link2,Link2Off,ListChecks,MapPin,Plus,Search,ShieldQuestion,Sparkles,Star,Store,Users} from "lucide-react";
-import {Button} from "@/components/ui/button";
-import {Input} from "@/components/ui/input";
-import {profileAuditCatalog,unconfiguredLocalRankProvider} from "@/lib/local-seo-v2-domain";
-import type {GoogleProfileSnapshot,LocalSeoSection,LocalSeoWorkspace} from "@/lib/local-seo-types";
-import type {LocalSeoV2Request} from "@/lib/local-seo-v2-api";
+import { useState } from "react";
+import {
+  ArrowRight,
+  BarChart3,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  ExternalLink,
+  FileSearch,
+  Globe,
+  Lightbulb,
+  Link2,
+  Link2Off,
+  ListChecks,
+  MessageSquare,
+  PhoneCall,
+  Plus,
+  Route,
+  Search,
+  ShieldCheck,
+  ShieldQuestion,
+  Sparkles,
+  Star,
+  Store,
+  Users,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  dataOriginLabels,
+  defaultCitationsCatalog,
+  NO_RANKING_PROMISE_DISCLAIMER,
+  profileAuditCatalog,
+  unconfiguredLocalRankProvider,
+  type DataOrigin,
+} from "@/lib/local-seo-v2-domain";
+import type {
+  GoogleProfileSnapshot,
+  LocalSeoSection,
+  LocalSeoWorkspace,
+} from "@/lib/local-seo-types";
+import type { LocalSeoV2Request } from "@/lib/local-seo-v2-api";
 
-type Ops={posts:Array<Record<string,unknown>>;reviews:Array<Record<string,unknown>>;replies:Array<Record<string,unknown>>;opportunities:Array<Record<string,unknown>>};
-const cards:Array<{section:LocalSeoSection;title:string;question:string;action:string;icon:typeof Store}>=[
- {section:"profile",title:"Perfil Google",question:"O perfil está completo e consistente?",action:"Revisar auditoria",icon:Store},
- {section:"reviews",title:"Avaliações",question:"Há avaliações que precisam de resposta?",action:"Abrir avaliações",icon:Star},
- {section:"posts",title:"Postagens",question:"Existe conteúdo planejado para o mês?",action:"Planejar conteúdo",icon:CalendarDays},
- {section:"keywords",title:"Palavras-chave",question:"Quais buscas locais são prioritárias?",action:"Organizar palavras",icon:Search},
- {section:"competitors",title:"Concorrência",question:"Onde o cliente difere dos concorrentes?",action:"Comparar concorrentes",icon:Users},
- {section:"opportunities",title:"Oportunidades",question:"Qual ação tem maior impacto agora?",action:"Ver oportunidades",icon:Lightbulb},
+type Ops = {
+  posts: Array<Record<string, unknown>>;
+  reviews: Array<Record<string, unknown>>;
+  replies: Array<Record<string, unknown>>;
+  opportunities: Array<Record<string, unknown>>;
+};
+
+const cards: Array<{
+  section: LocalSeoSection;
+  title: string;
+  question: string;
+  action: string;
+  icon: typeof Store;
+}> = [
+  {
+    section: "profile",
+    title: "Perfil GBP",
+    question: "O perfil está completo e com dados verificados?",
+    action: "Revisar perfil",
+    icon: Store,
+  },
+  {
+    section: "reputation",
+    title: "Reputação",
+    question: "Há avaliações críticas ou sem resposta?",
+    action: "Abrir reputação",
+    icon: Star,
+  },
+  {
+    section: "content",
+    title: "Conteúdo Local",
+    question: "Existe postagem planejada e aprovada para o mês?",
+    action: "Planejar conteúdo",
+    icon: CalendarDays,
+  },
+  {
+    section: "authority",
+    title: "Autoridade Local",
+    question: "Como estão as palavras-chave e citações em diretórios?",
+    action: "Gerenciar autoridade",
+    icon: Search,
+  },
+  {
+    section: "visibility",
+    title: "Visibilidade & Conversão",
+    question: "Qual o Local Score e baseline de interações?",
+    action: "Ver visibilidade",
+    icon: BarChart3,
+  },
+  {
+    section: "plan",
+    title: "Plano de Ação",
+    question: "Quais oportunidades estão prontas para o Motor de Operações?",
+    action: "Ver plano de ação",
+    icon: Lightbulb,
+  },
 ];
 
 export function ExecutiveOverview({
@@ -34,29 +117,41 @@ export function ExecutiveOverview({
     <div className="seo-executive">
       <section className="seo-health-header">
         <div className="seo-health-main">
-          <span className="section-kicker">CLIENTE SELECIONADO</span>
+          <span className="section-kicker">ENTREGA OPERACIONAL DE SEO LOCAL</span>
           <h2>{workspace.clientName}</h2>
-          <p>Visão executiva da presença local e das próximas ações operacionais.</p>
-          <Button variant="ghost" className="btn-connection-link" onClick={onOpenConnections}>
-            <Link2 /> Ver conexão Google
+          <p>
+            Diagnóstico explicável, plano de ação orientado a evidências e integração direta com o Motor de Operações.
+          </p>
+          <Button
+            variant="ghost"
+            className="btn-connection-link"
+            onClick={onOpenConnections}
+          >
+            <Link2 /> Conexão Google: {googleStatus}
           </Button>
         </div>
         <dl className="seo-health-metrics">
           <div>
-            <dt>Serviço SEO Local</dt>
-            <dd>Em preparação</dd>
+            <dt>Local Score</dt>
+            <dd>
+              {workspace.score.value !== null
+                ? `${workspace.score.value}/100`
+                : "Sem evidência suficiente"}
+            </dd>
           </div>
           <div>
-            <dt>Status Google</dt>
-            <dd>{googleStatus}</dd>
-          </div>
-          <div>
-            <dt>Última sincronização</dt>
-            <dd>Não sincronizado</dd>
-          </div>
-          <div>
-            <dt>Saúde dos dados</dt>
+            <dt>Comprovação dos dados</dt>
             <dd>{workspace.provenance.label}</dd>
+          </div>
+          <div>
+            <dt>Escrita no Google</dt>
+            <dd style={{ color: "#f59e0b", fontWeight: 600 }}>
+              Bloqueada (ALASTRE_WRITE_MODE=disabled)
+            </dd>
+          </div>
+          <div>
+            <dt>Garantia de Posição</dt>
+            <dd>Isenta de promessas fictícias</dd>
           </div>
         </dl>
       </section>
@@ -65,13 +160,13 @@ export function ExecutiveOverview({
         {cards.map((card) => {
           const Icon = card.icon;
           const amount =
-            card.section === "reviews"
+            card.section === "reputation" || card.section === "reviews"
               ? operations.reviews.length
-              : card.section === "posts"
-              ? operations.posts.length
-              : card.section === "opportunities"
-              ? operations.opportunities.length
-              : null;
+              : card.section === "content" || card.section === "posts"
+                ? operations.posts.length
+                : card.section === "plan" || card.section === "opportunities"
+                  ? operations.opportunities.length
+                  : null;
           return (
             <article className="panel seo-executive-card" key={card.section}>
               <div className="card-header-row">
@@ -85,13 +180,13 @@ export function ExecutiveOverview({
               </strong>
               <p className="card-question">{card.question}</p>
               <div className="executive-answer">
-                <b>Diagnóstico:</b>
+                <b>Status operacional:</b>
                 <span>
                   {amount === null
-                    ? "Dados ainda insuficientes"
+                    ? "Auditado via checklist"
                     : amount
-                    ? `${amount} registro(s) interno(s) disponível(is)`
-                    : "Nenhum registro disponível"}
+                      ? `${amount} registro(s) interno(s) operacional(is)`
+                      : "Sem registros cadastrados"}
                 </span>
               </div>
               <Button
@@ -105,6 +200,23 @@ export function ExecutiveOverview({
           );
         })}
       </section>
+
+      <div
+        className="panel"
+        style={{
+          marginTop: "16px",
+          padding: "16px",
+          fontSize: "13px",
+          borderRadius: "8px",
+          background: "var(--color-bg-secondary, #1a1a1a)",
+          borderLeft: "4px solid #f59e0b",
+        }}
+      >
+        <strong>⚠️ Nota Transparente de Responsabilidade:</strong>
+        <p style={{ margin: "4px 0 0 0", color: "var(--color-text-secondary, #ccc)" }}>
+          {NO_RANKING_PROMISE_DISCLAIMER}
+        </p>
+      </div>
     </div>
   );
 }
@@ -119,34 +231,43 @@ export function SeoStartGuide({
   onNavigate: (section: LocalSeoSection) => void;
 }) {
   const profile = workspace.profile;
-  const items = [
-    ["Nome da empresa", profile.name],
-    ["Categoria principal", profile.primaryCategory],
-    ["Cidade ou região", profile.location],
-    ["Telefone comercial", profile.phone],
-    ["Site oficial", profile.website],
-    ["Descrição comercial", profile.description],
-    ["Horários confirmados", profile.hours],
-    ["Serviços detalhados", profile.services.length ? profile.services.join(" · ") : null],
-  ] as Array<[string, string | null]>;
-
-  const missing = items.filter(([, value]) => !value);
+  const missing = [
+    !profile.name && "Nome",
+    !profile.primaryCategory && "Categoria Principal",
+    !profile.description && "Descrição",
+    !profile.location && "Endereço / Área",
+    !profile.phone && "Telefone",
+    !profile.website && "Website / UTM",
+  ].filter((item): item is string => Boolean(item));
 
   return (
     <section className="panel seo-start-guide">
-      <div className="start-guide-header">
-        <span className="section-kicker">CHECKLIST DE ENTRADA</span>
-        <h2>O que o SEO Local precisa para operar</h2>
-        <p>
-          O sistema separa os fatos confirmados no DNA daqueles que ainda precisam de validação com o cliente.
-        </p>
+      <div className="seo-guide-header">
+        <div>
+          <span className="section-kicker">CHECKLIST DE IMPLANTAÇÃO</span>
+          <h2>Diagnóstico Inicial de SEO Local</h2>
+          <p>
+            Valide os dados do cliente e verifique a completude antes de iniciar publicações e otimizaciones.
+          </p>
+        </div>
+        <span className="readiness-pill">
+          {missing.length === 0 ? "Pronto para Operar" : `${missing.length} Item(ns) Pendente(s)`}
+        </span>
       </div>
 
-      <div className="seo-readiness-list">
-        {items.map(([label, value]) => (
-          <span className={`readiness-pill ${value ? "ready" : "missing"}`} key={label}>
-            {value ? <CheckCircle2 className="icon-ready" /> : <ShieldQuestion className="icon-missing" />}
-            <b>{label}</b>
+      <div className="seo-guide-grid">
+        {[
+          ["Nome", profile.name],
+          ["Categoria", profile.primaryCategory],
+          ["Localidade", profile.location],
+          ["Telefone", profile.phone],
+          ["Website", profile.website],
+        ].map(([label, value]) => (
+          <span
+            key={String(label)}
+            className={`guide-chip ${value ? "is-filled" : "is-empty"}`}
+          >
+            <strong>{label}:</strong>
             <small>{value || "Confirmar com o cliente"}</small>
           </span>
         ))}
@@ -158,10 +279,10 @@ export function SeoStartGuide({
         </strong>
         <div className="guide-buttons">
           <Button variant="outline" onClick={() => onNavigate("profile")}>
-            Completar informações
+            Completar informações do Perfil
           </Button>
-          <Button onClick={() => onNavigate("keywords")}>
-            <Search /> Analisar palavras-chave
+          <Button onClick={() => onNavigate("authority")}>
+            <Search /> Gerenciar Palavras-chave & Autoridade
           </Button>
         </div>
       </div>
@@ -185,26 +306,122 @@ const profileValue = (profile: GoogleProfileSnapshot, key: string): unknown =>
     completeness: profile.completeness,
   }[key]);
 
-const rankingFactorMap: Record<string, { tier: "primary" | "highlight" | "support"; label: string; tip: string }> = {
-  primary_category: { tier: "primary", label: "Fator Primário", tip: "Maior peso no ranking do Local Pack" },
-  name: { tier: "primary", label: "Fator Crítico", tip: "Evitar keyword stuffing para prevenir suspensão" },
-  address: { tier: "primary", label: "Fator Primário", tip: "Consistência NAP e proximidade geográfica" },
-  additional_categories: { tier: "highlight", label: "Destaque", tip: "Captura buscas de serviços complementares" },
-  hours: { tier: "highlight", label: "Destaque", tip: "Essencial para cliques e evitar clientes frustrados" },
-  special_hours: { tier: "highlight", label: "Destaque", tip: "Evita reclamações em feriados e recessos" },
-  services: { tier: "highlight", label: "Destaque", tip: "Indexação em buscas locais long-tail" },
-  products: { tier: "highlight", label: "Destaque", tip: "Catálogo visual para aumento de conversão" },
-  photos: { tier: "highlight", label: "Destaque", tip: "Aumenta cliques e visitas à rota no Maps" },
-  logo: { tier: "highlight", label: "Destaque", tip: "Reconhecimento imediato de marca" },
-  cover: { tier: "highlight", label: "Destaque", tip: "Primeira impressão visual no perfil" },
-  description: { tier: "highlight", label: "Destaque", tip: "Até 750 caracteres com proposta de valor" },
-  attributes: { tier: "support", label: "Suporte", tip: "Filtros de comodidades e acessibilidade" },
-  phone: { tier: "support", label: "Suporte", tip: "Clique para ligar direto no mobile" },
-  website: { tier: "support", label: "Suporte", tip: "Tráfego para landing page geolocalizada" },
-  links: { tier: "support", label: "Suporte", tip: "Links para agendamento ou pedidos" },
-  questions: { tier: "support", label: "Suporte", tip: "Perguntas frequentes e prova de autoridade" },
-  completeness: { tier: "support", label: "Métrica Global", tip: "Completude geral da auditoria de perfil" },
+const rankingFactorMap: Record<
+  string,
+  { tier: "primary" | "highlight" | "support"; label: string; tip: string }
+> = {
+  primary_category: {
+    tier: "primary",
+    label: "Fator Primário",
+    tip: "Maior peso no ranking do Local Pack",
+  },
+  name: {
+    tier: "primary",
+    label: "Fator Crítico",
+    tip: "Evitar keyword stuffing para prevenir suspensão",
+  },
+  address: {
+    tier: "primary",
+    label: "Fator Primário",
+    tip: "Consistência NAP e proximidade geográfica",
+  },
+  additional_categories: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Captura buscas de serviços complementares",
+  },
+  hours: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Essencial para cliques e evitar clientes frustrados",
+  },
+  special_hours: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Evita reclamações em feriados e recessos",
+  },
+  services: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Indexação em buscas locais long-tail",
+  },
+  products: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Catálogo visual para aumento de conversão",
+  },
+  photos: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Aumenta cliques e visitas à rota no Maps",
+  },
+  logo: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Reconhecimento imediato de marca",
+  },
+  cover: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Primeira impressão visual no perfil",
+  },
+  description: {
+    tier: "highlight",
+    label: "Destaque",
+    tip: "Até 750 caracteres com proposta de valor",
+  },
+  attributes: {
+    tier: "support",
+    label: "Suporte",
+    tip: "Filtros de comodidades e acessibilidade",
+  },
+  phone: {
+    tier: "support",
+    label: "Suporte",
+    tip: "Clique para ligar direto no mobile",
+  },
+  website: {
+    tier: "support",
+    label: "Suporte",
+    tip: "Tráfego para landing page geolocalizada e UTMs",
+  },
+  links: {
+    tier: "support",
+    label: "Suporte",
+    tip: "Links para agendamento ou pedidos",
+  },
+  questions: {
+    tier: "support",
+    label: "Suporte",
+    tip: "Perguntas frequentes e prova de autoridade",
+  },
+  completeness: {
+    tier: "support",
+    label: "Métrica Global",
+    tip: "Completude geral da auditoria de perfil",
+  },
 };
+
+type AuditStatusType =
+  | "ok"
+  | "attention"
+  | "critical"
+  | "not_verified"
+  | "not_available";
+
+type CitationStatusType =
+  | "verified"
+  | "inconsistent"
+  | "missing"
+  | "submitted"
+  | "not_applicable";
+
+type NapStatusType =
+  | "consistent"
+  | "name_mismatch"
+  | "address_mismatch"
+  | "phone_mismatch"
+  | "unverified";
 
 export function ProfileAudit({
   workspace,
@@ -212,25 +429,31 @@ export function ProfileAudit({
   checks = [],
   clientId,
   onSave,
+  isAdvancedMode = false,
 }: {
   workspace: LocalSeoWorkspace;
   googleConnected: boolean;
   checks?: Array<Record<string, unknown>>;
   clientId: string;
   onSave?: (input: LocalSeoV2Request) => Promise<void>;
+  isAdvancedMode?: boolean;
 }) {
-  const persisted = new Map(checks.map((item) => [String(item.check_key), item]));
+  const persisted = new Map(
+    checks.map((item) => [String(item.check_key), item]),
+  );
 
   return (
     <div className="seo-operation">
       <section className="operation-head">
         <div>
-          <span className="section-kicker">AUDITORIA DE CONSISTÊNCIA</span>
-          <h2>Perfil no Google Meu Negócio</h2>
-          <p>Verificações com evidência comprovada e histórico rastreável.</p>
+          <span className="section-kicker">AUDITORIA DE ELEGIBILIDADE & RISCO</span>
+          <h2>Perfil Google Business Profile (18 Pontos)</h2>
+          <p>
+            Diagnóstico centralizado de categorias, serviços, atributos, horários, UTMs e consistência NAP com indicação explícita da origem do dado.
+          </p>
         </div>
         <span className="audit-summary">
-          <ListChecks /> {checks.length} verificações registradas
+          <ListChecks /> {checks.length} de {profileAuditCatalog.length} auditados
         </span>
       </section>
 
@@ -239,6 +462,7 @@ export function ProfileAudit({
           const value = profileValue(workspace.profile, key);
           const saved = persisted.get(key);
           const status = String(saved?.status ?? "not_verified");
+          const dataOrigin = (saved?.data_origin as DataOrigin) ?? (googleConnected ? "provider" : "manual");
           const available = Array.isArray(value)
             ? value.length > 0
             : value !== null && value !== undefined && value !== "";
@@ -247,28 +471,71 @@ export function ProfileAudit({
 
           return (
             <article className="panel profile-check" key={key}>
-              <span className={`check-state ${status === "ok" ? "known" : "unknown"}`}>
-                {status === "ok" ? <CheckCircle2 /> : googleConnected ? <Clock3 /> : <Link2Off />}
+              <span
+                className={`check-state ${status === "ok" ? "known" : "unknown"}`}
+              >
+                {status === "ok" ? (
+                  <CheckCircle2 />
+                ) : googleConnected ? (
+                  <Clock3 />
+                ) : (
+                  <Link2Off />
+                )}
               </span>
               <div className="check-body">
-                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    flexWrap: "wrap",
+                  }}
+                >
                   <strong>{label}</strong>
                   {factor && (
                     <span
                       className={`readiness-pill ${factor.tier === "primary" ? "missing" : factor.tier === "highlight" ? "ready" : ""}`}
-                      style={{ fontSize: "0.625rem", padding: "1px 5px", textTransform: "uppercase", letterSpacing: "0.03em" }}
+                      style={{
+                        fontSize: "0.625rem",
+                        padding: "1px 5px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.03em",
+                      }}
                       title={factor.tip}
                     >
                       {factor.label}
                     </span>
                   )}
+                  <span
+                    style={{
+                      fontSize: "0.625rem",
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                      background: "var(--color-bg-secondary, #222)",
+                      color: "var(--color-text-secondary, #aaa)",
+                    }}
+                  >
+                    {dataOriginLabels[dataOrigin] ?? dataOrigin}
+                  </span>
                 </div>
-                <small className="check-status-label">{status.replaceAll("_", " ")}</small>
+
+                <small className="check-status-label">
+                  {status.replaceAll("_", " ")}
+                </small>
+
                 {factor && (
-                  <span style={{ fontSize: "0.6875rem", color: "var(--content-secondary)", display: "block", marginBottom: "0.25rem" }}>
+                  <span
+                    style={{
+                      fontSize: "0.6875rem",
+                      color: "var(--content-secondary, #888)",
+                      display: "block",
+                      marginBottom: "0.25rem",
+                    }}
+                  >
                     {factor.tip}
                   </span>
                 )}
+
                 <p>
                   {String(
                     saved?.evidence_note ??
@@ -276,41 +543,88 @@ export function ProfileAudit({
                         ? Array.isArray(value)
                           ? value.join(" · ")
                           : value
-                        : "Sem evidência registrada.")
+                        : "Ausência de evidência (Indisponível)."),
                   )}
                 </p>
-                {onSave && (
-                  <select
-                    aria-label={`Estado de ${label}`}
-                    className="check-select"
-                    value={status}
-                    onChange={(event) =>
-                      void onSave({
-                        action: "audit_save",
-                        client_id: clientId,
-                        check_key: key,
-                        status: event.target.value as
-                          | "ok"
-                          | "attention"
-                          | "critical"
-                          | "not_verified"
-                          | "not_available",
-                        source: "manual",
-                        evidence_note: available
-                          ? String(Array.isArray(value) ? value.join(" · ") : value)
-                          : undefined,
-                      })
-                    }
+
+                {isAdvancedMode && saved && (
+                  <div
+                    style={{
+                      fontSize: "0.6875rem",
+                      color: "#888",
+                      fontFamily: "monospace",
+                      marginTop: "4px",
+                    }}
                   >
-                    <option value="not_verified">Não verificado</option>
-                    <option value="not_available">Indisponível</option>
-                    <option value="ok">Conforme (OK)</option>
-                    <option value="attention">Atenção</option>
-                    <option value="critical">Crítico</option>
-                  </select>
+                    CheckKey: {key} | Source: {String(saved.source ?? "manual")} | Checked: {saved.updated_at ? new Date(String(saved.updated_at)).toLocaleString("pt-BR") : "N/D"}
+                  </div>
+                )}
+
+                {onSave && (
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "6px",
+                      marginTop: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <select
+                      aria-label={`Estado de ${label}`}
+                      className="check-select"
+                      value={status}
+                      onChange={(event) =>
+                        void onSave({
+                          action: "audit_save",
+                          client_id: clientId,
+                          check_key: key,
+                          status: event.target.value as AuditStatusType,
+                          source: "manual",
+                          data_origin: dataOrigin,
+                          evidence_note: available
+                            ? String(
+                                Array.isArray(value) ? value.join(" · ") : value,
+                              )
+                            : undefined,
+                        })
+                      }
+                    >
+                      <option value="not_verified">Não verificado</option>
+                      <option value="not_available">Indisponível (N/D)</option>
+                      <option value="ok">Conforme (OK)</option>
+                      <option value="attention">Atenção</option>
+                      <option value="critical">Crítico</option>
+                    </select>
+
+                    <select
+                      aria-label={`Origem de ${label}`}
+                      className="check-select"
+                      value={dataOrigin}
+                      onChange={(event) =>
+                        void onSave({
+                          action: "audit_save",
+                          client_id: clientId,
+                          check_key: key,
+                          status: status as AuditStatusType,
+                          source: "manual",
+                          data_origin: event.target.value as DataOrigin,
+                          evidence_note: saved?.evidence_note ? String(saved.evidence_note) : undefined,
+                        })
+                      }
+                    >
+                      <option value="provider">Google API</option>
+                      <option value="manual">Manual (Operador)</option>
+                      <option value="evidence">Evidência documental</option>
+                      <option value="inference">Inferência (DNA)</option>
+                      <option value="hypothesis">Hipótese</option>
+                      <option value="unavailable">Indisponível</option>
+                    </select>
+                  </div>
                 )}
               </div>
-              <b className="check-badge">{status.toUpperCase().replaceAll("_", " ")}</b>
+              <b className="check-badge">
+                {status.toUpperCase().replaceAll("_", " ")}
+              </b>
             </article>
           );
         })}
@@ -346,7 +660,7 @@ export function KeywordsWorkspace({
     automotive && location && `higienização automotiva em ${location}`,
     automotive && location && `vitrificação automotiva em ${location}`,
     ...workspace.profile.services.map((service) =>
-      location ? `${service} em ${location}` : service
+      location ? `${service} em ${location}` : service,
     ),
   ]
     .filter((value): value is string => Boolean(value))
@@ -354,8 +668,10 @@ export function KeywordsWorkspace({
       (value, index, array) =>
         array.indexOf(value) === index &&
         !visible.some(
-          (row) => String(row.keyword).toLocaleLowerCase() === value.toLocaleLowerCase()
-        )
+          (row) =>
+            String(row.keyword).toLocaleLowerCase() ===
+            value.toLocaleLowerCase(),
+        ),
     )
     .slice(0, 8);
 
@@ -374,10 +690,13 @@ export function KeywordsWorkspace({
           source: "dna",
           service: category || undefined,
           location: location || undefined,
-          reason: "Sugestão inicial derivada da categoria, serviços e localidade presentes no DNA.",
+          reason:
+            "Sugestão inicial derivada da categoria, serviços e localidade presentes no DNA.",
         });
       }
-      setMessage(`${suggestions.length} sugestões criadas para revisão humana.`);
+      setMessage(
+        `${suggestions.length} sugestões criadas para revisão humana.`,
+      );
     } catch {
       setMessage("Não foi possível salvar todas as sugestões.");
     } finally {
@@ -389,18 +708,23 @@ export function KeywordsWorkspace({
     <div className="seo-operation">
       <section className="operation-head">
         <div>
-          <span className="section-kicker">DEMANDA & BUSCA LOCAL</span>
-          <h2>Palavras-chave Relevantes</h2>
-          <p>Cadastre, aprove e monitore termos com intenção de busca local comprovada.</p>
+          <span className="section-kicker">DEMANDA & INTENÇÃO LOCAL</span>
+          <h2>Palavras-Chave de Busca Local</h2>
+          <p>
+            Termos transacionais e comerciais organizados com indicação da origem e status de aprovação humana.
+          </p>
         </div>
         {onSave && (
-          <Button onClick={() => void saveSuggestions()} disabled={busy || !suggestions.length}>
+          <Button
+            onClick={() => void saveSuggestions()}
+            disabled={busy || !suggestions.length}
+          >
             <Sparkles />
             {busy
               ? "Analisando..."
               : suggestions.length
-              ? `Criar ${suggestions.length} sugestões do DNA`
-              : "Sugestões já criadas"}
+                ? `Criar ${suggestions.length} sugestões do DNA`
+                : "Sugestões já criadas"}
           </Button>
         )}
       </section>
@@ -441,8 +765,8 @@ export function KeywordsWorkspace({
                 {status === "monitored"
                   ? "Monitoradas"
                   : status === "suggested"
-                  ? "Sugeridas"
-                  : "Aprovadas"}
+                    ? "Sugeridas"
+                    : "Aprovadas"}
               </strong>
               <span className="lane-count">
                 {visible.filter((row) => row.status === status).length}
@@ -497,18 +821,6 @@ export function KeywordsWorkspace({
           </section>
         ))}
       </div>
-
-      <section className="panel rank-foundation">
-        <MapPin />
-        <div>
-          <span className="section-kicker">RANK TRACKING LOCAL</span>
-          <h3>Monitoramento de posições geo-localizadas</h3>
-          <p>
-            Posições no mapa e no grid local exigem conexão ativa com provedor de rankeamento.
-          </p>
-        </div>
-        <span className="rank-status-tag">{unconfiguredLocalRankProvider.status}</span>
-      </section>
     </div>
   );
 }
@@ -531,7 +843,9 @@ export function CompetitorsWorkspace({
         <div>
           <span className="section-kicker">CENÁRIO COMPETITIVO</span>
           <h2>Concorrentes Locais Diretos</h2>
-          <p>Compare referências locais baseando-se estritamente em dados auditados.</p>
+          <p>
+            Comparação com concorrentes da mesma região com base em dados observados.
+          </p>
         </div>
       </section>
 
@@ -540,12 +854,16 @@ export function CompetitorsWorkspace({
           <Input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Nome do concorrente"
+            placeholder="Nome do concorrente local"
           />
           <Button
             disabled={!name.trim()}
             onClick={() => {
-              void onSave({ action: "competitor_save", client_id: clientId, name });
+              void onSave({
+                action: "competitor_save",
+                client_id: clientId,
+                name,
+              });
               setName("");
             }}
           >
@@ -559,9 +877,11 @@ export function CompetitorsWorkspace({
           <Users />
           <div>
             <h3>Nenhum concorrente cadastrado</h3>
-            <p>Adicione um concorrente da região para acompanhar e comparar notas e categorias.</p>
+            <p>
+              Adicione concorrentes conhecidos para comparar notas, avaliações e categorização.
+            </p>
           </div>
-          <span className="safe-badge">Sem scraping não autorizado</span>
+          <span className="safe-badge">Dado observado ou manual</span>
         </section>
       ) : (
         <section className="panel comparison-table">
@@ -569,7 +889,9 @@ export function CompetitorsWorkspace({
             <div className="comparison-row" key={String(row.id)}>
               <strong>{String(row.name)}</strong>
               <span>{String(row.location ?? "Local não informado")}</span>
-              <b>{row.rating == null ? "N/D" : `${String(row.rating)} ★`}</b>
+              <b>
+                {row.rating == null ? "N/D" : `${String(row.rating)} ★`}
+              </b>
               {onSave && (
                 <button
                   type="button"
@@ -594,6 +916,363 @@ export function CompetitorsWorkspace({
   );
 }
 
+export function CitationsWorkspace({
+  clientId,
+  citations = [],
+  onSave,
+}: {
+  clientId: string;
+  citations: Array<Record<string, unknown>>;
+  onSave?: (input: LocalSeoV2Request) => Promise<void>;
+}) {
+  const persisted = new Map(
+    citations.map((c) => [String(c.directory_name), c]),
+  );
+
+  return (
+    <div className="seo-operation">
+      <section className="operation-head">
+        <div>
+          <span className="section-kicker">CITAÇÕES & NAP CONSISTENCY</span>
+          <h2>Diretórios Locais e Autoridade de Citação</h2>
+          <p>
+            Monitoramento de consistência de Nome, Endereço e Telefone (NAP) nos principais guias e mapas.
+          </p>
+        </div>
+      </section>
+
+      <div className="profile-audit-grid">
+        {defaultCitationsCatalog.map((item) => {
+          const saved = persisted.get(item.directory_name);
+          const status = String(saved?.status ?? "missing");
+          const napStatus = String(saved?.nap_status ?? "unverified");
+
+          return (
+            <article className="panel profile-check" key={item.directory_name}>
+              <span
+                className={`check-state ${status === "verified" ? "known" : "unknown"}`}
+              >
+                {status === "verified" ? <ShieldCheck /> : <Globe />}
+              </span>
+              <div className="check-body">
+                <strong>{item.directory_name}</strong>
+                <small className="check-status-label">{item.category}</small>
+                <p>
+                  Status NAP:{" "}
+                  <b>
+                    {napStatus === "consistent"
+                      ? "NAP Consistente ✓"
+                      : napStatus === "name_mismatch"
+                        ? "Nome Divergente ⚠️"
+                        : napStatus === "address_mismatch"
+                          ? "Endereço Divergente ⚠️"
+                          : napStatus === "phone_mismatch"
+                            ? "Telefone Divergente ⚠️"
+                            : "Não verificado"}
+                  </b>
+                </p>
+
+                {saved?.url && (
+                  <a
+                    href={String(saved.url)}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "var(--color-primary, #3b82f6)",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "2px",
+                    }}
+                  >
+                    Ver link registrado <ExternalLink style={{ width: "12px", height: "12px" }} />
+                  </a>
+                )}
+
+                {onSave && (
+                  <div style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+                    <select
+                      className="check-select"
+                      aria-label={`Status de ${item.directory_name}`}
+                      value={status}
+                      onChange={(e) =>
+                        void onSave({
+                          action: "citation_save",
+                          client_id: clientId,
+                          directory_name: item.directory_name,
+                          status: e.target.value as CitationStatusType,
+                          nap_status: napStatus as NapStatusType,
+                          source: "manual",
+                          url: saved?.url ? String(saved.url) : undefined,
+                        })
+                      }
+                    >
+                      <option value="missing">Ausente</option>
+                      <option value="verified">Verificado (Conforme)</option>
+                      <option value="inconsistent">Inconsistente</option>
+                      <option value="submitted">Enviado</option>
+                      <option value="not_applicable">Não aplicável</option>
+                    </select>
+
+                    <select
+                      className="check-select"
+                      aria-label={`NAP status de ${item.directory_name}`}
+                      value={napStatus}
+                      onChange={(e) =>
+                        void onSave({
+                          action: "citation_save",
+                          client_id: clientId,
+                          directory_name: item.directory_name,
+                          status: status as CitationStatusType,
+                          nap_status: e.target.value as NapStatusType,
+                          source: "manual",
+                          url: saved?.url ? String(saved.url) : undefined,
+                        })
+                      }
+                    >
+                      <option value="unverified">Não verificado</option>
+                      <option value="consistent">NAP Consistente</option>
+                      <option value="name_mismatch">Nome Divergente</option>
+                      <option value="address_mismatch">Endereço Divergente</option>
+                      <option value="phone_mismatch">Telefone Divergente</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function VisibilityConversionWorkspace({
+  workspace,
+}: {
+  workspace: LocalSeoWorkspace;
+}) {
+  return (
+    <div className="seo-operation space-y-6">
+      <section className="operation-head">
+        <div>
+          <span className="section-kicker">MEDICÃO & EVIDÊNCIAS DE DESEMPENHO</span>
+          <h2>Visibilidade e Conversão Local</h2>
+          <p>
+            Alastre Local Score, baseline histórico e métricas de conversão informadas com transparência.
+          </p>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="panel p-4 rounded-lg bg-card border border-border">
+          <span className="text-xs font-semibold text-muted-foreground uppercase">
+            Baseline de Entrada
+          </span>
+          <h3 className="text-lg font-bold text-foreground mt-1">
+            Ponto de Partida Auditado
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Estado da ficha no onboarding. Serve como referência para acompanhar evoluções de perfil e reputação.
+          </p>
+          <div className="mt-3 text-sm font-semibold">
+            Status: {workspace.provenance.label}
+          </div>
+        </div>
+
+        <div className="panel p-4 rounded-lg bg-card border border-border">
+          <span className="text-xs font-semibold text-muted-foreground uppercase">
+            Local Pack & Posições
+          </span>
+          <h3 className="text-lg font-bold text-foreground mt-1">
+            Ranking Google Maps
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Google Business Profile não fornece dados de posição nativamente. Posições de busca dependem de um Rank Provider configurado.
+          </p>
+          <div className="mt-3 text-xs font-mono bg-muted p-1.5 rounded text-muted-foreground">
+            Status: {unconfiguredLocalRankProvider.status} (Provedor não configurado)
+          </div>
+        </div>
+
+        <div className="panel p-4 rounded-lg bg-card border border-border">
+          <span className="text-xs font-semibold text-muted-foreground uppercase">
+            Heatmap / Grid Local
+          </span>
+          <h3 className="text-lg font-bold text-foreground mt-1">
+            Grid de Geoposição
+          </h3>
+          <p className="text-xs text-muted-foreground mt-1">
+            Visualização em raio de busca para ver onde a ficha aparece nos primeiros lugares.
+          </p>
+          <div className="mt-3 text-xs font-medium text-amber-500">
+            Grid não contratado / Indisponível para este cliente.
+          </div>
+        </div>
+      </section>
+
+      <section className="panel p-4 rounded-lg bg-card border border-border">
+        <span className="text-xs font-semibold text-muted-foreground uppercase">
+          Métricas de Conversão Coletadas / Informadas
+        </span>
+        <h3 className="text-base font-bold text-foreground mb-3">
+          Ações Diretas dos Clientes (Insights)
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="p-3 bg-muted rounded-lg text-center">
+            <PhoneCall className="w-5 h-5 mx-auto mb-1 text-primary" />
+            <span className="text-xs text-muted-foreground">Ligações</span>
+            <div className="text-lg font-bold">Informado / API</div>
+          </div>
+          <div className="p-3 bg-muted rounded-lg text-center">
+            <Route className="w-5 h-5 mx-auto mb-1 text-primary" />
+            <span className="text-xs text-muted-foreground">Rotas no Maps</span>
+            <div className="text-lg font-bold">Informado / API</div>
+          </div>
+          <div className="p-3 bg-muted rounded-lg text-center">
+            <Globe className="w-5 h-5 mx-auto mb-1 text-primary" />
+            <span className="text-xs text-muted-foreground">Cliques no Site</span>
+            <div className="text-lg font-bold">Informado / API</div>
+          </div>
+          <div className="p-3 bg-muted rounded-lg text-center">
+            <MessageSquare className="w-5 h-5 mx-auto mb-1 text-primary" />
+            <span className="text-xs text-muted-foreground">WhatsApp / Formulários</span>
+            <div className="text-lg font-bold">Coletado CRM</div>
+          </div>
+        </div>
+      </section>
+
+      <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-lg text-xs text-amber-600 dark:text-amber-400">
+        <strong>⚠️ Limitações Explícitas de Responsabilidade:</strong>
+        <p className="mt-1">{NO_RANKING_PROMISE_DISCLAIMER}</p>
+      </div>
+    </div>
+  );
+}
+
+export function ActionPlanWorkspace({
+  opportunities = [],
+  clientId,
+  onSave,
+}: {
+  opportunities: Array<Record<string, unknown>>;
+  clientId: string;
+  onSave?: (input: LocalSeoV2Request) => Promise<void>;
+}) {
+  const [busyId, setBusyId] = useState("");
+
+  const activeOpps = opportunities.filter(
+    (o) => !["completed", "dismissed"].includes(String(o.status)),
+  );
+
+  async function handleCreateWorkItem(oppId: string) {
+    if (!onSave) return;
+    setBusyId(oppId);
+    try {
+      await onSave({
+        action: "opportunity_create_work_item",
+        client_id: clientId,
+        id: oppId,
+      });
+    } catch {
+      // Ignorar erro gracioso
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  return (
+    <div className="seo-operation space-y-4">
+      <section className="operation-head">
+        <div>
+          <span className="section-kicker">PLANO DE AÇÃO OPERACIONAL</span>
+          <h2>Oportunidades & Tarefas no Motor de Operações</h2>
+          <p>
+            Transforme diagnósticos de SEO Local em tarefas executáveis com SLA, evidências e responsáveis no Módulo 04.
+          </p>
+        </div>
+      </section>
+
+      {activeOpps.length === 0 ? (
+        <section className="panel competitor-empty">
+          <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-2" />
+          <h3>Nenhuma oportunidade pendente</h3>
+          <p>
+            Todas as oportunidades detectadas já foram transformadas em tarefas ou concluídas.
+          </p>
+        </section>
+      ) : (
+        <div className="grid grid-cols-1 gap-3">
+          {activeOpps.map((opp) => {
+            const id = String(opp.id);
+            const priority = String(opp.priority ?? "medium");
+            const workItemId = opp.work_item_id ? String(opp.work_item_id) : null;
+            const diagnosis = opp.diagnosis ? String(opp.diagnosis) : null;
+            const recommendation = opp.recommendation ? String(opp.recommendation) : null;
+
+            return (
+              <article
+                className="panel p-4 rounded-lg bg-card border border-border flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+                key={id}
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded font-semibold uppercase ${
+                        priority === "critical"
+                          ? "bg-red-500/20 text-red-500"
+                          : priority === "high"
+                            ? "bg-amber-500/20 text-amber-500"
+                            : "bg-blue-500/20 text-blue-500"
+                      }`}
+                    >
+                      {priority}
+                    </span>
+                    <span className="text-xs text-muted-foreground uppercase font-medium">
+                      {String(opp.category ?? "Geral")}
+                    </span>
+                  </div>
+                  <h4 className="font-bold text-foreground text-base">
+                    {String(opp.title)}
+                  </h4>
+                  {diagnosis ? (
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Diagnóstico:</strong> {String(diagnosis)}
+                    </p>
+                  ) : null}
+                  {recommendation ? (
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Recomendação:</strong> {String(recommendation)}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2 self-end md:self-center">
+                  {workItemId ? (
+                    <span className="text-xs bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/30 px-3 py-1.5 rounded-md font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Vinculado ao Motor de Operações
+                    </span>
+                  ) : (
+                    onSave && (
+                      <Button
+                        size="sm"
+                        onClick={() => void handleCreateWorkItem(id)}
+                        disabled={busyId === id}
+                      >
+                        {busyId === id ? "Vinculando..." : "Transformar em Tarefa Operacional"}
+                      </Button>
+                    )
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function HistoryWorkspace({
   rows = [],
 }: {
@@ -603,8 +1282,8 @@ export function HistoryWorkspace({
     .filter((row) => row.created_at || row.updated_at || row.reviewed_at)
     .sort((a, b) =>
       String(b.updated_at ?? b.reviewed_at ?? b.created_at).localeCompare(
-        String(a.updated_at ?? a.reviewed_at ?? a.created_at)
-      )
+        String(a.updated_at ?? a.reviewed_at ?? a.created_at),
+      ),
     );
 
   return ordered.length ? (
@@ -615,12 +1294,16 @@ export function HistoryWorkspace({
       </div>
       {ordered.map((row, index) => {
         const kind = String(row.history_kind ?? "registro");
-        const date = String(row.updated_at ?? row.reviewed_at ?? row.created_at);
+        const date = String(
+          row.updated_at ?? row.reviewed_at ?? row.created_at,
+        );
         const title = String(
           row.theme ??
             row.reviewer_name ??
             row.title ??
-            (kind === "reply" ? "Resposta de avaliação" : "Atividade SEO Local")
+            (kind === "reply"
+              ? "Resposta de avaliação"
+              : "Atividade SEO Local"),
         );
         return (
           <div className="audit-row" key={String(row.id ?? index)}>
@@ -630,7 +1313,8 @@ export function HistoryWorkspace({
             <div className="audit-info">
               <strong>{title}</strong>
               <small>
-                {kind.replaceAll("_", " ")} · {new Date(date).toLocaleString("pt-BR")}
+                {kind.replaceAll("_", " ")} ·{" "}
+                {new Date(date).toLocaleString("pt-BR")}
               </small>
             </div>
             <span className="audit-status-tag">
@@ -648,11 +1332,10 @@ export function HistoryWorkspace({
       <div>
         <h2>Histórico operacional limpo</h2>
         <p>
-          Postagens, avaliações, respostas e decisões humanas aparecerão aqui após a primeira
-          operação.
+          Postagens, avaliações, respostas, pontuações e decisões humanas aparecerão aqui.
         </p>
         <small>
-          <ShieldQuestion /> Nenhum evento fictício ou simulação desnecessária.
+          <ShieldQuestion /> Registros autênticos auditáveis.
         </small>
       </div>
     </section>
