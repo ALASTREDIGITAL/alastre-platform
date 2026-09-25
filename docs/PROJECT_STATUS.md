@@ -154,3 +154,30 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - `tsc --noEmit`: 0 erros de compilação.
   - `eslint`: 0 erros nos arquivos alterados.
 
+## Marco de Entrega — Módulo 07: Sucesso do Cliente (2026-09-25)
+
+- **Escopo Funcional Entregue**:
+  - Central de Sucesso do Cliente estruturada em 8 abas funcionais: Carteira & Health Score, Scorecard de Valor, Reuniões e Decisões, Riscos e Recuperação, Renovação e Escopo, Expansão (Upsell/Downsell), Cancelamento & Offboarding, Histórico & Auditoria.
+  - Alternância de visualização entre Modo Simples (padrão) e Modo Avançado (técnico).
+  - Health Score explicável e decomponível (0-100 pts) cobrindo 7 fatores principais com indicação explícita de cobertura de dados (`complete`, `partial`, `insufficient`). Tratamento mandatório de dados ausentes como `Dados Insuficientes (N/D)`, sem notas negativas arbitrárias.
+  - Segregação mandatória de causas primárias de inconsistência (`alastre_delivery_failure`, `channel_limitation`, `client_dependency_failure`, `insufficient_data`).
+  - Scorecards de Valor periódicos reunindo entregas concluídas, evidências do Módulo 06 e mensagem de isenção de garantia (`NO_RANKING_PROMISE_DISCLAIMER`).
+  - Registro de reuniões e conversão direta de decisões acionáveis em tarefas operacionais (`work_items`) no Motor de Operações (Módulo 04).
+  - Matriz de risco de churn com severidade, nível de confiança e geração atômica de tarefas de recuperação no Módulo 04.
+  - Esteira de expansão e renovação com exigência mandatória de fit demonstrado, valor evidenciado, impacto operacional no Módulo 04 e aprovação humana explícita.
+  - Solicitações de cancelamento e offboarding seguro com inventário de revogação de acessos, tarefas de transição no Módulo 04 e política de retenção de auditoria sem exclusões destrutivas.
+
+- **Banco de Dados, API e Segurança**:
+  - Migrations forward-only: `supabase/migrations/20260925070000_client_success_foundation.sql` e `20260925080000_client_success_hardening.sql`.
+  - Tabelas: `client_health_scores`, `client_scorecards`, `client_meetings`, `client_meeting_decisions`, `client_churn_assessments`, `client_expansion_recommendations`, `client_cancellation_requests`, `client_offboarding_inventories`.
+  - Constraints únicas `(agency_id, id)` e Foreign Keys compostas `(agency_id, client_id)`.
+  - RLS ativado e permissões revogadas para `public`, `anon`, `authenticated` (acesso restrito ao `service_role`).
+  - Endpoint `POST /api/client-success` e `GET /api/client-success` com validação Zod, `resolveAuthenticatedActor` e auditoria.
+
+- **Suíte de Validação**:
+  - 23 testes automatizados focados no Módulo 07 (`tests/client-success-*.test.ts`).
+  - 16 testes de migração e segurança (`tests/migration-security.test.mjs`).
+  - 4 testes de segurança da plataforma (`tests/platform-security.test.mjs`).
+  - Total: 43 testes automatizados passando (100% sucesso).
+
+
