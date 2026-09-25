@@ -1,36 +1,16 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess, execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { startProspectingTestServer, type ProspectingTestServer } from "./helpers/prospecting-test-server.ts";
 
-const execFileAsync = promisify(execFile);
-const BASE_URL = "http://127.0.0.1:5176";
+const PORT = 5176;
+const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 let EPHEMERAL_TOKEN = process.env.PROSPECTING_WORKER_SECRET_TOKEN || "";
-let serverChild: ChildProcess | null = null;
+let testServer: ProspectingTestServer | null = null;
 
 describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2 e 5)", () => {
   before(async () => {
-    // 1. Limpa qualquer processo que esteja ocupando a porta 5176
-    if (process.platform === "win32") {
-      try {
-        const { stdout } = await execFileAsync(
-          "cmd.exe",
-          ["/c", "netstat -ano | findstr :5176"],
-          { timeout: 3000 }
-        );
-        const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
-        for (const line of lines) {
-          const parts = line.trim().split(/\s+/);
-          const pid = parts[parts.length - 1];
-          if (Number(pid) > 0) {
-            await execFileAsync("taskkill.exe", ["/F", "/PID", pid], { timeout: 2000 }).catch(() => {});
-          }
-        }
-      } catch {}
-    }
-
-    // 2. Lê o segredo configurado sem alterar o .env.local em disco
+    // Lê o segredo configurado sem alterar o .env.local em disco
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
     if (!EPHEMERAL_TOKEN) {
@@ -47,57 +27,24 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
       EPHEMERAL_TOKEN = "alastre-homolog-token-live-session";
     }
 
-    // 3. Inicia o servidor Vite na porta 5176 diretamente pelo runtime node
-    const viteBin = path.resolve(process.cwd(), "node_modules", "vite", "bin", "vite.js");
-    serverChild = spawn(process.execPath, [viteBin, "--port", "5176", "--force"], {
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        WRANGLER_LOG_PATH: ".wrangler/wrangler.log",
-        PROSPECTING_WORKER_SECRET_TOKEN: EPHEMERAL_TOKEN,
-      },
-      windowsHide: true,
-    });
+    testServer = await startProspectingTestServer(PORT, EPHEMERAL_TOKEN);
 
-    serverChild.stdout?.on("data", () => {});
-    serverChild.stderr?.on("data", () => {});
-
-    // 4. Aguarda o servidor inicializar e responder na porta 5176
-    let ready = false;
-    const maxAttempts = 120;
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const res = await fetch(`${BASE_URL}/api/internal/prospecting/worker/jobs`);
-        if (res.status === 401) {
-          ready = true;
-          break;
-        }
-      } catch {}
-      await new Promise((r) => setTimeout(r, 800));
-    }
-
-    assert.ok(
-      ready,
-      "Servidor em 127.0.0.1:5176 deve inicializar com segredo efêmero e responder 401 para chamadas sem token"
+    // Confirma que o servidor está respondendo
+    const res = await fetch(`${BASE_URL}/api/internal/prospecting/worker/jobs`);
+    assert.equal(
+      res.status,
+      401,
+      `Servidor em 127.0.0.1:${PORT} deve inicializar com segredo efêmero e responder 401 para chamadas sem token`
     );
   });
 
   after(async () => {
-    // Encerramento completo e forçado da árvore do servidor de teste ao final
-    if (serverChild && serverChild.pid) {
-      if (process.platform === "win32") {
-        try {
-          await execFileAsync("taskkill.exe", ["/F", "/T", "/PID", String(serverChild.pid)], { timeout: 2000 });
-        } catch {}
-      } else {
-        try {
-          serverChild.kill("SIGKILL");
-        } catch {}
-      }
+    if (testServer) {
+      await testServer.close();
+      testServer = null;
     }
 
-    // Confirma que a porta 5176 foi liberada
-    await new Promise((r) => setTimeout(r, 600));
+    // Confirma que a porta foi liberada
     let isPortClosed = true;
     try {
       await fetch(`${BASE_URL}/api/internal/prospecting/worker/jobs`);
@@ -106,7 +53,7 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
       isPortClosed = true;
     }
 
-    assert.equal(isPortClosed, true, "Porta 5176 deve estar completamente encerrada após o teste");
+    assert.equal(isPortClosed, true, `Porta ${PORT} deve estar completamente encerrada após o teste`);
   });
 
   it("proves fail-closed security and full 4-route lifecycle using the ephemeral secret", async () => {

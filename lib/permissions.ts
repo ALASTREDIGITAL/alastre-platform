@@ -90,3 +90,51 @@ export function validateActivationApprovalPermission(params: {
 
   return { allowed: true };
 }
+
+/**
+ * 05. Validação centralizada de permissões para o Motor de Operações (Módulo 04)
+ */
+export function canWriteOperations(role: string): boolean {
+  return ["owner", "admin", "operations_lead", "operator"].includes(role);
+}
+
+export function canApproveWorkItem(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+export function canManageWorkflowTemplates(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+export function hasModulePermission(
+  role: string,
+  module: "product_factory" | "commercial" | "onboarding" | "operations",
+  action: "view" | "create" | "edit" | "approve" | "delete"
+): boolean {
+  if (["owner", "admin"].includes(role)) return true;
+
+  if (module === "operations") {
+    if (action === "view") return true;
+    if (action === "create" || action === "edit") {
+      return ["operations_lead", "operator"].includes(role);
+    }
+    if (action === "approve") {
+      return role === "operations_lead";
+    }
+    return false;
+  }
+
+  if (module === "onboarding") {
+    if (action === "view") return true;
+    if (action === "create" || action === "edit") {
+      return ["operations_lead", "operator"].includes(role);
+    }
+    if (action === "approve") {
+      return role === "operations_lead";
+    }
+    return false;
+  }
+
+  return true;
+}
+

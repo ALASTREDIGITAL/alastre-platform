@@ -404,4 +404,119 @@ export const clientOnboardingDecisions = sqliteTable("client_onboarding_decision
   decided_at: text("decided_at").notNull(),
 });
 
+/**
+ * Module 04: Operations Engine Drizzle Schema
+ */
+
+export const workflowTemplates = sqliteTable("workflow_templates", {
+  id: text("id").primaryKey(),
+  agency_id: text("agency_id").notNull(),
+  product_definition_id: text("product_definition_id"),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  version: integer("version").notNull().default(1),
+  category: text("category").notNull().default("general"),
+  description: text("description").notNull().default(""),
+  trigger_type: text("trigger_type").notNull().default("manual"),
+  target_service: text("target_service"),
+  is_active: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  estimated_total_minutes: integer("estimated_total_minutes").notNull().default(0),
+  definition: text("definition", { mode: "json" }),
+  created_at: text("created_at").notNull(),
+  updated_at: text("updated_at").notNull(),
+});
+
+export const workflows = sqliteTable("workflows", {
+  id: text("id").primaryKey(),
+  agency_id: text("agency_id").notNull(),
+  client_id: text("client_id").notNull(),
+  unit_id: text("unit_id"),
+  service_id: text("service_id"),
+  template_id: text("template_id"),
+  title: text("title").notNull(),
+  workflow_type: text("workflow_type").notNull().default("implementation"),
+  status: text("status").notNull().default("pending"),
+  priority: text("priority").notNull().default("medium"),
+  progress_percentage: integer("progress_percentage").notNull().default(0),
+  total_estimated_minutes: integer("total_estimated_minutes").notNull().default(0),
+  total_actual_minutes: integer("total_actual_minutes").notNull().default(0),
+  blocked_reason: text("blocked_reason"),
+  target_start_date: text("target_start_date"),
+  target_due_date: text("target_due_date"),
+  started_at: text("started_at"),
+  completed_at: text("completed_at"),
+  assigned_actor_id: text("assigned_actor_id"),
+  metadata: text("metadata", { mode: "json" }),
+  created_at: text("created_at").notNull(),
+  updated_at: text("updated_at").notNull(),
+});
+
+export const workItems = sqliteTable("work_items", {
+  id: text("id").primaryKey(),
+  agency_id: text("agency_id").notNull(),
+  client_id: text("client_id").notNull(),
+  workflow_id: text("workflow_id").notNull(),
+  unit_id: text("unit_id"),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  task_type: text("task_type").notNull().default("manual"),
+  frequency: text("frequency").notNull().default("one_off"),
+  status: text("status").notNull().default("todo"),
+  priority: text("priority").notNull().default("medium"),
+  estimated_minutes: integer("estimated_minutes").notNull().default(0),
+  actual_minutes: integer("actual_minutes").notNull().default(0),
+  due_date: text("due_date"),
+  sla_hours: integer("sla_hours").default(24),
+  sla_status: text("sla_status").notNull().default("on_track"),
+  depends_on_item_ids: text("depends_on_item_ids", { mode: "json" }),
+  assigned_actor_id: text("assigned_actor_id"),
+  assigned_actor_name: text("assigned_actor_name"),
+  requires_approval: integer("requires_approval", { mode: "boolean" }).notNull().default(false),
+  approval_item_id: text("approval_item_id"),
+  evidence_required: integer("evidence_required", { mode: "boolean" }).notNull().default(false),
+  evidence_text: text("evidence_text"),
+  evidence_url: text("evidence_url"),
+  acceptance_criteria: text("acceptance_criteria").notNull().default(""),
+  sop_reference: text("sop_reference"),
+  blocked_reason: text("blocked_reason"),
+  client_action_required: text("client_action_required"),
+  completed_at: text("completed_at"),
+  completed_by_actor_id: text("completed_by_actor_id"),
+  order_index: integer("order_index").notNull().default(0),
+  created_at: text("created_at").notNull(),
+  updated_at: text("updated_at").notNull(),
+});
+
+export const workItemTimeLogs = sqliteTable("work_item_time_logs", {
+  id: text("id").primaryKey(),
+  agency_id: text("agency_id").notNull(),
+  client_id: text("client_id").notNull(),
+  work_item_id: text("work_item_id").notNull(),
+  actor_id: text("actor_id").notNull(),
+  actor_name: text("actor_name").notNull(),
+  minutes_spent: integer("minutes_spent").notNull(),
+  notes: text("notes").notNull().default(""),
+  logged_at: text("logged_at").notNull(),
+  created_at: text("created_at").notNull(),
+});
+
+export const operationalExceptions = sqliteTable("operational_exceptions", {
+  id: text("id").primaryKey(),
+  agency_id: text("agency_id").notNull(),
+  client_id: text("client_id").notNull(),
+  workflow_id: text("workflow_id"),
+  work_item_id: text("work_item_id"),
+  severity: text("severity").notNull(),
+  status: text("status").notNull().default("open"),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  resolution_notes: text("resolution_notes"),
+  reported_by_actor_id: text("reported_by_actor_id").notNull(),
+  resolved_by_actor_id: text("resolved_by_actor_id"),
+  resolved_at: text("resolved_at"),
+  created_at: text("created_at").notNull(),
+  updated_at: text("updated_at").notNull(),
+});
+
+
 

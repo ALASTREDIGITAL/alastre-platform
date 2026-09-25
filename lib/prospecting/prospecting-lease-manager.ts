@@ -13,7 +13,6 @@ import type {
   WorkerFailResponse,
   WorkerHeartbeatResponse,
   WorkerClaimResponse,
-  ProspectingJobStatus,
   DncScope,
 } from "./types.ts";
 import { buildIdentityKey, hashDncIdentifier } from "./prospecting-identity.ts";
@@ -237,7 +236,6 @@ export class ProspectingLeaseManager {
     const now = new Date();
     const nowIso = now.toISOString();
     const queueDeadlineIso = new Date(now.getTime() + QUEUE_TIMEOUT_MS).toISOString();
-    const executionDeadlineIso = new Date(now.getTime() + EXECUTION_DEADLINE_MS).toISOString();
 
     const job: ProspectingJob = {
       id,
@@ -595,6 +593,7 @@ export class ProspectingLeaseManager {
     job.idempotency_key = idempotency_key;
     job.updated_at = now.toISOString();
 
+    this.jobs.set(job_id, job);
     this.saveToFile();
 
     return {
@@ -766,7 +765,6 @@ export class ProspectingLeaseManager {
   }
 
   public isDncActive(hash: string, agencyId: string): boolean {
-    this.loadFromFile();
     if (this.dncStore.has(`global:global:${hash}`)) {
       return true;
     }

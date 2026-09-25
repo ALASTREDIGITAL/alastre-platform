@@ -261,4 +261,45 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - `npm run build`: 100% aprovado com todas as 23 rotas compiladas.
   - `supabase db advisors --linked`: 0 erros e 0 alertas de segurança.
 
+## Marco de Entrega — Módulo 04: Motor de Operações e Estabilização de Testes (2026-09-25)
+
+- **Estabilização Definitiva do Test Runner (`npm test`)**:
+  - **Arquivos Causadores do Travamento**: `tests/prospecting-functional-flow.test.ts` e `tests/prospecting-http-integration.test.ts`.
+  - **Causa Raiz Identificada e Corrigida**:
+    1. *Processos Externos do Vite & Wrangler Locks*: Os testes iniciavam instâncias completas do Vite via `child_process.spawn`. O Vite carregava o plugin `@cloudflare/vite-plugin`, criando instâncias de Miniflare com escrita em banco SQLite e persistência em `.wrangler/registry`. Isso criava concorrência de locks de arquivo no Windows e deixava dezenas de instâncias de `node.exe` órfãs segurando pipes `stdio`.
+    2. *Handles Abertos no Event Loop*: Ao finalizar o teste, processos órfãos mantinham streams abertas no Windows, impedindo o runner nativo do Node (`node --test`) de encerrar o processo.
+    3. *Desconexão de Estado em Lotes*: Em `lib/prospecting/prospecting-lease-manager.ts`, o método `isDncActive` chamava `this.loadFromFile()` a cada verificação de lead durante o loop de `completeJob`. Como `loadFromFile()` reatribuía os mapas em memória lendo do disco antes do `saveToFile()` do lote, ele sobrescrevia os leads em memória e desacoplava referências, gerando erros 409 em cascata.
+  - **Solução Definitiva**:
+    - Criação de helper leve in-process em `tests/helpers/prospecting-test-server.ts` usando `node:http.createServer` nativo e `vite.ssrLoadModule` com `configFile: false`. Não há spawns de processos externos, Miniflare nem criação de workers. Fechamento gracioso com `closeAllConnections()` e `server.close()`.
+    - Remoção do recarregamento de disco no meio de loops em `lib/prospecting/prospecting-lease-manager.ts`.
+  - **Resultado do Marco Global**: **281/281 testes aprovados (100% pass, 0 fail, 0 skipped, código de saída 0)**.
+
+- **Banco de Dados e Persistência (M04)**:
+  - Migration `supabase/migrations/20260924150000_operations_engine_foundation.sql` aplicada com sucesso no Supabase Homologação (`fifbtwbndutbvwnbzgtz`).
+  - 4 novas tabelas criadas: `operations_workspaces`, `operations_service_definitions`, `operations_work_items`, `operations_sla_policies`.
+  - RPC PostgreSQL atômica `public.operations_transition_work_item` para transições seguras de status (`pending`, `in_progress`, `blocked`, `completed`, `cancelled`), validação de dependências e auditoria transacional.
+  - RLS ativado em 100% das novas tabelas com isolamento estrito por `agency_id = current_setting('app.current_agency_id')`.
+  - Grants de execução e leitura restritos exclusivamente ao `service_role`.
+  - Espelho de schema atualizado no Drizzle ORM (`db/schema.ts`).
+
+- **API Server-Side e Transações**:
+  - Endpoint `POST /api/operations` (`app/api/operations/route.ts`) autenticado com `resolveAuthenticatedActor`.
+  - Ações operacionais validadas com schemas Zod em `lib/operations-api.ts`.
+  - RBAC integrado com permissões de gestão e execução em `lib/permissions.ts`.
+  - Auditoria completa em `audit_events` para toda mutação e transição de itens operacionais.
+
+- **Interface e Navegação**:
+  - Módulo `app/operations-engine-module.tsx` integrado com Modo Simples padrão e Modo Avançado.
+  - 5 abas operacionais: Filas de Trabalho, Atenção & Atrasos, Workspaces, Políticas de SLA, Métricas & Capacidade.
+  - Integrado ao `app/app-shell.tsx` no menu **Operações**.
+
+- **Suíte de Testes do Módulo 04**:
+  - 4 suítes automatizadas com 25 testes aprovados (`tests/operations-*.test.ts`):
+    - `tests/operations-domain.test.ts` (10 testes)
+    - `tests/operations-security.test.ts` (1 teste)
+    - `tests/operations-api.test.ts` (4 testes)
+    - `tests/operations-navigation-and-ui.test.ts` (10 testes)
+  - `tsc --noEmit`: 0 erros de compilação.
+
+
 

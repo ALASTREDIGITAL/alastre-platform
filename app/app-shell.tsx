@@ -24,6 +24,7 @@ import {
   Compass,
   PackagePlus,
   UserCheck,
+  Workflow as WorkflowIcon,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
@@ -46,12 +47,14 @@ import { SkillsModule } from "./skills-module";
 import { ImageGeotagModule } from "./image-geotag-module";
 import { ClientJourneyModule } from "./client-journey-module";
 import { ClientOnboardingModule } from "./client-onboarding-module";
+import { OperationsEngineModule } from "./operations-engine-module";
 import { ModulePlaceholder } from "@/components/module-placeholder";
 import { placeholderConfigs } from "@/components/placeholder-configs";
 import { useAuth } from "@/lib/auth-context";
 import { AgencyOnboardingModal } from "@/components/agency-onboarding-modal";
 export type View =
   | "overview"
+  | "operations-engine"
   | "product-factory"
   | "clients"
   | "client-journey"
@@ -76,6 +79,7 @@ export type View =
   | "skills";
 const views: View[] = [
   "overview",
+  "operations-engine",
   "product-factory",
   "clients",
   "client-journey",
@@ -110,6 +114,12 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
     label: "Operação",
     items: [
       { label: "Visão geral", icon: LayoutDashboard, view: "overview" },
+      {
+        label: "Motor de Operações",
+        icon: WorkflowIcon,
+        view: "operations-engine",
+        featured: true,
+      },
       { label: "Aprovações", icon: CheckCircle2, view: "approvals" },
       { label: "Agentes", icon: Bot, view: "agents" },
     ],
@@ -420,6 +430,8 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
         icon={CircleDollarSign}
         onNavigate={(view) => navigateToView(view as View)}
       />
+    ) : activeView === "operations-engine" ? (
+      <OperationsEngineModule onNavigate={navigateToView} />
     ) : activeView === "costs" ? (
       <OperationsModule mode="costs" />
     ) : activeView === "audit" ? (
