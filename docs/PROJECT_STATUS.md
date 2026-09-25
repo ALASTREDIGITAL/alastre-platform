@@ -129,3 +129,28 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Total da suíte de SEO Local (`tests/local-seo-*.test.ts`): 53 testes passando (100% de sucesso).
   - `tsc --noEmit`: 0 erros de compilação.
   - `eslint`: 0 erros.
+
+## Marco de Entrega — Módulo 06: Qualidade e Evidências (2026-09-25)
+
+- **Escopo Funcional Entregue**:
+  - Central de Qualidade e Evidências reestruturada em 6 abas funcionais: Fila de Revisões, Evidências, Checklists, Não Conformidades, Correções e Reaberturas, Histórico e Auditoria.
+  - Alternância de visualização entre Modo Simples (padrão) e Modo Avançado (técnico).
+  - Estrutura canônica de evidências vinculadas a `work_items` com suporte aos 8 tipos obrigatórios (`before_after`, `screenshot`, `url`, `external_id`, `sanitized_payload`, `manual_confirmation`, `automated_validation`, `collection_limitation`).
+  - Checklists de qualidade versionados reutilizáveis por tipo de produto, serviço e nível de risco (`low`, `normal`, `high`, `critical`).
+  - Política de revisão por risco (`mandatory`, `sampled`, `optional`) com regra de Segregação de Funções (SoD) que impede autoaprovação em tarefas de alto risco quando executor = verificador.
+  - Mapeamento e abertura de Não Conformidades com registro de causa raiz, impacto e botão para gerar Ações Corretivas diretamente no Motor de Operações (Módulo 04). Bloqueio operacional em tarefas vinculadas a Não Conformidades Críticas abertas.
+  - Histórico de auditoria imutável (`quality_audit_history`) preservando estados anteriores, novos estados, autor, data/hora e justificativa, impedindo sobrescrita silenciosa de evidências trancadas (`is_locked`).
+
+- **Banco de Dados, API e Segurança**:
+  - Migration forward-only: `supabase/migrations/20260925050000_quality_and_evidence_foundation.sql`.
+  - Tabelas: `quality_evidences`, `quality_checklist_templates`, `quality_checklist_runs`, `quality_non_conformities`, `quality_audit_history`.
+  - Unique constraints em `(agency_id, id)` e Foreign Keys compostas `(agency_id, work_item_id)` e `(agency_id, client_id)`.
+  - RLS ativado e permissões revogadas para `public`, `anon`, `authenticated` (acesso por `service_role`).
+  - RPC privilegiada `quality_verify_evidence` com `SECURITY DEFINER` e `SET search_path = ''`.
+  - Endpoint `POST /api/quality` com validações Zod e `resolveAuthenticatedActor`.
+
+- **Suíte de Validação**:
+  - 15 testes automatizados focados no Módulo 06 (`tests/quality-and-evidence.test.ts`).
+  - `tsc --noEmit`: 0 erros de compilação.
+  - `eslint`: 0 erros nos arquivos alterados.
+
