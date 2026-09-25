@@ -132,17 +132,13 @@ Implementada em `app/client-onboarding-module.tsx` e conectada ao `app/app-shell
   - Implementado em `lib/permissions.ts` e `lib/rbac.ts`.
   - Ativação (`approve_activation`), cancelamento e desbloqueio restritos a `owner`, `admin` e `operations_lead`.
   - Operadores (`operator`) e visualizadores (`viewer`) são terminantemente impedidos de aprovar ativações (SoD).
-- **Activation Gate Real**:
-  - `approve_activation` recalcula os 11 critérios de prontidão a partir do estado fresco do banco/armazenamento.
-  - Valida o item de aprovação pendente (`approval_items`) com checagem estrita de `agency_id`, `source_type = 'client_onboarding_activation'`, `source_id = onboardingId` e `status = 'pending'`.
-  - Se faltar qualquer critério, retorna **409 Conflict** com a lista de pendências (`missingCriteria`), sem tocar ou mutar nenhum registro.
-- **Ativação Atômica via RPC PostgreSQL**:
-  - Migration `20260924130000_client_onboarding_atomic_activation.sql` aplicada na homologação (`fifbtwbndutbvwnbzgtz`).
-  - Função `public.onboarding_activate_client` executada em transação única com `FOR UPDATE`, atualizando `client_onboardings`, `clients`, `client_services` e `approval_items`.
-  - Revogado de `public`, `anon` e `authenticated`; concedido apenas a `service_role`.
-  - Bloqueia ativação dupla concorrente ou repetida retornando **409 Conflict**.
-- **Prevenção de Falso Sucesso**:
-  - Todas as mutações validam o número de linhas afetadas (`data.length > 0`), retornando **404 Not Found** se 0 linhas foram afetadas, e verificam a inserção em `audit_events` (retornando **500 Internal Server Error** em caso de falha de auditoria).
+- **Activation Gate Baseado em Dados Reais (Defesa Anti-TOCTOU)**:
+  - Migration `20260924140000_client_onboarding_real_gate_defense.sql` aplicada na homologação (`fifbtwbndutbvwnbzgtz`).
+  - O gate de ativação no servidor e no RPC de banco não aceita mais contagens fictícias (`enabledServicesCount: onb.client_id ? 1 : 0`) nem deriva confirmação de DNA a partir do estágio do onboarding.
+  - Consulta obrigatória e simultânea de `agency_id` e `client_id` em:
+    - `public.client_services`: exige pelo menos um serviço real em estado pré-ativação permitido (`status in ('pending', 'active')`).
+    - `public.client_dna_profiles`: exige perfil existente com `status = 'confirmed'` e preenchimento factual completo dos campos críticos (`getCriticalPendingFields(dna) === 0`).
+  - RPC PostgreSQL `onboarding_activate_client` valida transacionalmente a existência de serviços reais e DNA confirmado com lock exclusivo, abortando com exceção em caso de violação de critérios e sem mutação residual.
 
 ## Verificação e Definition of Done
 
@@ -152,10 +148,11 @@ Implementada em `app/client-onboarding-module.tsx` e conectada ao `app/app-shell
 | Testes de Segurança DB | `node --test tests/client-onboarding-security.test.ts` | 1/1 aprovado |
 | Testes de API | `node --test tests/client-onboarding-api.test.ts` | 4/4 aprovados |
 | Testes de Navegação & UI | `node --test tests/client-onboarding-navigation-and-ui.test.ts` | 10/10 aprovados |
-| Testes de Hardening (M01, M02, M03) | `node --test tests/hardening-auth-tenant-activation.test.ts` | 6/6 aprovados |
+| Testes de Hardening (M01, M02, M03) | `node --test tests/hardening-auth-tenant-activation.test.ts` | 9/9 aprovados |
+| Suíte Global de Testes | `npm test` | 256/256 aprovados (100%) |
 | Type-checking TypeScript | `npx tsc --noEmit` | 0 erros |
-| Linter ESLint | `npx eslint lib/permissions.ts lib/rbac.ts app/api/client-onboarding app/client-onboarding` | 0 erros |
+| Linter ESLint | `npm run lint` | 0 erros |
 | Build de Produção | `npm run build` | 0 erros (`/api/client-onboarding` compilado) |
 | Supabase Security Advisors | `npx supabase db advisors --linked` | 0 erros, 0 alertas de segurança |
-| Migration Remota | `npx supabase db push` | Aplicada com sucesso no ref `fifbtwbndutbvwnbzgtz` |
+| Migrations Remotas | `npx supabase db push` | Aplicadas com sucesso no ref `fifbtwbndutbvwnbzgtz` |
 

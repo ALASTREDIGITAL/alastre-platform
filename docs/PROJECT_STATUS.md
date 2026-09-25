@@ -236,25 +236,29 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Módulos `lib/permissions.ts` e `lib/rbac.ts` centralizam as políticas por papel (`owner`, `admin`, `operations_lead`, `commercial_lead`, `operator`, `sales_rep`, `viewer`).
   - Ativação (`approve_activation`), cancelamento (`cancel`) e desbloqueio (`unblock`) restritos a `owner`, `admin` e `operations_lead`.
   - Operadores (`operator`) e visualizadores (`viewer`) são terminantemente proibidos de aprovar ativações (SoD).
-- **Activation Gate Real**:
-  - `approve_activation` recalcula os 11 critérios de prontidão diretamente no servidor a partir do estado fresco do banco.
-  - Valida o item de aprovação pendente (`approval_items`) exigindo match em `agency_id`, `source_type = 'client_onboarding_activation'`, `source_id = onboardingId` e `status = 'pending'`.
-  - Se faltar qualquer critério, retorna **409 Conflict** com a lista de pendências (`missingCriteria`), sem tocar ou mutar nenhum registro.
+- **Activation Gate Baseado em Dados Reais (Defesa Anti-TOCTOU)**:
+  - Migration `20260924140000_client_onboarding_real_gate_defense.sql` aplicada no Supabase Homologação (`fifbtwbndutbvwnbzgtz`).
+  - O gate de ativação no servidor e no RPC de banco não aceita mais contagens fictícias (`enabledServicesCount: onb.client_id ? 1 : 0`) nem deriva confirmação de DNA a partir do estágio do onboarding.
+  - Consulta obrigatória e simultânea de `agency_id` e `client_id` em:
+    - `public.client_services`: exige pelo menos um serviço real em estado pré-ativação permitido (`status in ('pending', 'active')`).
+    - `public.client_dna_profiles`: exige perfil existente com `status = 'confirmed'` e preenchimento factual completo dos campos críticos (`getCriticalPendingFields(dna) === 0`).
+  - RPC PostgreSQL `onboarding_activate_client` valida transacionalmente a existência de serviços reais e DNA confirmado com lock exclusivo, abortando com exceção em caso de violação de critérios e sem mutação residual.
 - **Ativação Atômica no PostgreSQL**:
-  - Migration `20260924130000_client_onboarding_atomic_activation.sql` aplicada no Supabase Homologação (`fifbtwbndutbvwnbzgtz`).
+  - Migrations `20260924130000_client_onboarding_atomic_activation.sql` e `20260924140000_client_onboarding_real_gate_defense.sql` aplicadas no Supabase Homologação (`fifbtwbndutbvwnbzgtz`).
   - Função transacional `public.onboarding_activate_client` com `SECURITY DEFINER`, `search_path = public, pg_temp`, execução revogada de `public`/`anon`/`authenticated` e concedida somente a `service_role`.
   - Atualiza atomicamente `client_onboardings`, `clients`, `client_services` e `approval_items` com lock de linha (`FOR UPDATE`), prevenindo dupla ativação e retornando **409 Conflict** em caso de corrida ou ativação repetida.
 - **Prevenção de Falsos Sucessos**:
   - Todas as mutações em M01, M02 e M03 validam contagem de linhas afetadas (`data.length > 0`), retornando **404 Not Found** se 0 linhas foram afetadas, e verificam a inserção em `audit_events` (retornando **500 Internal Server Error** em falhas de auditoria).
 - **Suíte de Hardening e Validação Completa**:
-  - 14 suítes de testes automatizados com 78 testes aprovados (100% de sucesso):
+  - 14 suítes de testes automatizados com 81 testes de domínio/API/UI/Hardening específicos aprovados:
     - `tests/product-factory-*.test.ts`: 15 testes aprovados
     - `tests/commercial-crm-*.test.ts`: 32 testes aprovados
     - `tests/client-onboarding-*.test.ts`: 25 testes aprovados
-    - `tests/hardening-auth-tenant-activation.test.ts`: 6 testes de hardening aprovados
+    - `tests/hardening-auth-tenant-activation.test.ts`: 9 testes de hardening aprovados
+  - Suíte completa do repositório (`npm test`): **256 testes passando, 0 falhas** (100% de sucesso).
   - `tsc --noEmit`: 0 erros.
   - `eslint`: 0 erros.
-  - `npm run build`: 100% aprovado com todas as rotas e SSR compilados.
-  - `supabase db advisors --linked`: 0 erros e 0 alertas.
+  - `npm run build`: 100% aprovado com todas as 23 rotas compiladas.
+  - `supabase db advisors --linked`: 0 erros e 0 alertas de segurança.
 
 

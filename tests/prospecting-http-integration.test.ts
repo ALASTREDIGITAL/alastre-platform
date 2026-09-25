@@ -15,18 +15,14 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
     if (process.platform === "win32") {
       try {
         const { stdout } = await execFileAsync(
-          "powershell.exe",
-          [
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-Command",
-            "Get-NetTCPConnection -LocalPort 5176 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess",
-          ],
+          "cmd.exe",
+          ["/c", "netstat -ano | findstr :5176"],
           { timeout: 3000 }
         );
-        const pids = stdout.trim().split(/\s+/).filter(Boolean);
-        for (const pid of pids) {
+        const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
+        for (const line of lines) {
+          const parts = line.trim().split(/\s+/);
+          const pid = parts[parts.length - 1];
           if (Number(pid) > 0) {
             await execFileAsync("taskkill.exe", ["/F", "/PID", pid], { timeout: 2000 }).catch(() => {});
           }
@@ -41,9 +37,9 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
       try {
         const envLocalPath = path.resolve(process.cwd(), ".env.local");
         const envContent = await fs.readFile(envLocalPath, "utf8");
-        const match = envContent.match(/PROSPECTING_WORKER_SECRET_TOKEN=([^\r\n]+)/);
-        if (match) {
-          EPHEMERAL_TOKEN = match[1].trim();
+        const matches = [...envContent.matchAll(/PROSPECTING_WORKER_SECRET_TOKEN=([^\r\n]+)/g)];
+        if (matches.length > 0) {
+          EPHEMERAL_TOKEN = matches[matches.length - 1][1].trim();
         }
       } catch {}
     }
@@ -53,21 +49,18 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
 
     // 3. Inicia o servidor Vite na porta 5176 diretamente pelo runtime node
     const viteBin = path.resolve(process.cwd(), "node_modules", "vite", "bin", "vite.js");
-    serverChild = spawn(process.execPath, [viteBin, "--port", "5176"], {
+    serverChild = spawn(process.execPath, [viteBin, "--port", "5176", "--force"], {
       cwd: process.cwd(),
       env: {
         ...process.env,
+        WRANGLER_LOG_PATH: ".wrangler/wrangler.log",
         PROSPECTING_WORKER_SECRET_TOKEN: EPHEMERAL_TOKEN,
       },
       windowsHide: true,
     });
 
-    serverChild.stdout?.on("data", (d) => {
-      // process.stdout.write(`[VITE] ${d.toString()}`);
-    });
-    serverChild.stderr?.on("data", (d) => {
-      // process.stderr.write(`[VITE-ERR] ${d.toString()}`);
-    });
+    serverChild.stdout?.on("data", () => {});
+    serverChild.stderr?.on("data", () => {});
 
     // 4. Aguarda o servidor inicializar e responder na porta 5176
     let ready = false;
