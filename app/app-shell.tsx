@@ -25,6 +25,7 @@ import {
   PackagePlus,
   UserCheck,
   Workflow as WorkflowIcon,
+  HeartPulse,
 } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
@@ -49,6 +50,7 @@ import { ClientJourneyModule } from "./client-journey-module";
 import { ClientOnboardingModule } from "./client-onboarding-module";
 import { OperationsEngineModule } from "./operations-engine-module";
 import { QualityModuleApp } from "./quality-module";
+import { ClientSuccessModule } from "./client-success-module";
 import { ModulePlaceholder } from "@/components/module-placeholder";
 import { placeholderConfigs } from "@/components/placeholder-configs";
 import { useAuth } from "@/lib/auth-context";
@@ -78,7 +80,8 @@ export type View =
   | "costs"
   | "audit"
   | "connections"
-  | "skills";
+  | "skills"
+  | "client-success";
 const views: View[] = [
   "overview",
   "operations-engine",
@@ -105,6 +108,7 @@ const views: View[] = [
   "audit",
   "connections",
   "skills",
+  "client-success",
 ];
 type NavItem = {
   label: string;
@@ -148,6 +152,7 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
     label: "Clientes",
     items: [
       { label: "Clientes", icon: Users, view: "clients" },
+      { label: "Sucesso do Cliente", icon: HeartPulse, view: "client-success", featured: true },
       { label: "Esteira do Cliente", icon: Kanban, view: "client-journey", featured: true },
       { label: "Onboarding de Clientes", icon: UserCheck, view: "client-onboarding", featured: true },
       { label: "DNA e memória", icon: Fingerprint, view: "dna" },
@@ -440,9 +445,11 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
         onNavigate={(view) => navigateToView(view as View)}
       />
     ) : activeView === "operations-engine" ? (
-      <OperationsEngineModule onNavigate={(view) => navigateToView(view as View)} />
+      <OperationsEngineModule />
     ) : activeView === "quality" ? (
       <QualityModuleApp onNavigate={(view) => navigateToView(view as View)} />
+    ) : activeView === "client-success" ? (
+      <ClientSuccessModule onNavigate={(view) => navigateToView(view as View)} selectedClientId={selectedClient} />
     ) : activeView === "costs" ? (
       <OperationsModule mode="costs" />
     ) : activeView === "audit" ? (
