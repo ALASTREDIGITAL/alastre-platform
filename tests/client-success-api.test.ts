@@ -8,6 +8,7 @@ import { operationsMemoryStore } from "../app/api/operations/route.ts";
 
 test("Módulo 07 — API: Ações de Health Score, Scorecards e Reuniões", async (t) => {
   clientSuccessMemoryStore.clear();
+  operationsMemoryStore.clear();
 
   const clientId = "11111111-1111-4111-a111-111111111111";
 
@@ -32,7 +33,7 @@ test("Módulo 07 — API: Ações de Health Score, Scorecards e Reuniões", asyn
     assert.equal(data.healthScore.client_id, clientId);
   });
 
-  await t.test("executa POST create_meeting e converte decisão em tarefa do Módulo 04", async () => {
+  await t.test("executa POST create_meeting e converte decisão em tarefa com workflow válido do Módulo 04", async () => {
     // 1. Criar Reunião
     const reqMeeting = new Request("http://localhost/api/client-success", {
       method: "POST",
@@ -87,18 +88,23 @@ test("Módulo 07 — API: Ações de Health Score, Scorecards e Reuniões", asyn
     assert.equal(dataTask.success, true);
     assert.ok(dataTask.work_item);
     assert.equal(dataTask.work_item.client_id, clientId);
+    assert.ok(dataTask.work_item.workflow_id, "Deve associar a um workflow_id válido");
     assert.ok(dataTask.work_item.title.includes("Expandir gerenciamento"));
 
-    // Confirmar que o work_item foi registrado no store de Operações
+    // Confirmar que o work_item e o workflow foram registrados no store de Operações
     const createdItem = operationsMemoryStore.workItems.find((w) => w.id === dataTask.work_item.id);
     assert.ok(createdItem);
+    assert.equal(createdItem.workflow_id, dataTask.work_item.workflow_id);
+
+    const createdWorkflow = operationsMemoryStore.workflows.find((w) => w.id === dataTask.work_item.workflow_id);
+    assert.ok(createdWorkflow, "Workflow deve ter sido criado/reutilizado");
   });
 });
 
-test("Módulo 07 — API: Expansão, Churn e Offboarding", async (t) => {
+test("Módulo 07 — API: Expansão, Churn, RBAC de Aprovação e Offboarding", async (t) => {
   const clientId = "11111111-1111-4111-a111-111111111111";
 
-  await t.test("cria e aprova recomendação de expansão com aprovação humana", async () => {
+  await t.test("rejeita aprovação por operador não autorizado (RBAC 403)", async () => {
     // 1. Criar recomendação
     const reqExp = new Request("http://localhost/api/client-success", {
       method: "POST",
@@ -117,20 +123,64 @@ test("Módulo 07 — API: Expansão, Churn e Offboarding", async (t) => {
     const resExp = await clientSuccessRouteHandler(reqExp);
     assert.equal(resExp.status, 200);
     const dataExp = await resExp.json();
-    assert.equal(dataExp.success, true);
     const recId = dataExp.recommendation.id;
-    assert.equal(dataExp.recommendation.human_approval_status, "pending");
 
-    // 2. Aprovar recomendação
-    const reqApprove = new Request("http://localhost/api/client-success", {
+    // 2. Tentar aprovação como operador (deve falhar com 403)
+    const reqOpApprove = new Request("http://localhost/api/client-success", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-test-actor-role": "operator",
+        "x-test-actor-id": "operador-tentando-aprovar",
+      },
       body: JSON.stringify({
         action: "approve_expansion",
         recommendation_id: recId,
         client_id: clientId,
         decision: "approved",
-        actor_id: "gestor-cs-principal",
+        actor_id: "forged-actor-id",
+      }),
+    });
+
+    const resOpApprove = await clientSuccessRouteHandler(reqOpApprove);
+    assert.equal(resOpApprove.status, 403);
+    const dataOpApprove = await resOpApprove.json();
+    assert.ok(dataOpApprove.error.includes("Permissão insuficiente"));
+  });
+
+  await t.test("cria e aprova recomendação de expansão por gestor (substitui actor_id forjado e gera audit_event)", async () => {
+    const reqExp = new Request("http://localhost/api/client-success", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_expansion_recommendation",
+        client_id: clientId,
+        type: "expansion_service",
+        target_service_name: "Gestão Premium de SEO Local",
+        demonstrated_fit_rationale: "Cliente atingiu score 90 no Alastre Local Score e demanda cobertura expandida.",
+        evidenced_value_rationale: "Evidências verificadas no Módulo 06 comprovam consistência de entrega.",
+        operational_impact_assessment: "Capacidade operacional verificada no Módulo 04 sem sobrecarga.",
+      }),
+    });
+
+    const resExp = await clientSuccessRouteHandler(reqExp);
+    const dataExp = await resExp.json();
+    const recId = dataExp.recommendation.id;
+
+    const realActorId = "gestor-autenticado-123";
+    const reqApprove = new Request("http://localhost/api/client-success", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-test-actor-role": "operations_lead",
+        "x-test-actor-id": realActorId,
+      },
+      body: JSON.stringify({
+        action: "approve_expansion",
+        recommendation_id: recId,
+        client_id: clientId,
+        decision: "approved",
+        actor_id: "forged-actor-in-payload",
       }),
     });
 
@@ -139,6 +189,12 @@ test("Módulo 07 — API: Expansão, Churn e Offboarding", async (t) => {
     const dataApprove = await resApprove.json();
     assert.equal(dataApprove.success, true);
     assert.equal(dataApprove.status, "approved");
+    assert.equal(dataApprove.approved_by_actor_id, realActorId, "actor_id do payload forjado deve ser ignorado");
+
+    // Verificar audit event registrado
+    const auditEvent = operationsMemoryStore.auditEvents.find((e) => e.target_id === recId);
+    assert.ok(auditEvent, "Deve registrar audit_event na aprovação");
+    assert.equal(auditEvent.action, "approve_expansion");
   });
 
   await t.test("solicita cancelamento e cria inventário de offboarding com retenção de auditoria", async () => {
