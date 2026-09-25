@@ -38,7 +38,8 @@ import {
 
 type TabId = "queues" | "workflows" | "kanban" | "capacity" | "templates";
 
-export function OperationsEngineModule() {
+export function OperationsEngineModule({ onNavigate }: { onNavigate?: (view: string) => void }) {
+  void onNavigate;
   useAuth();
   const [activeTab, setActiveTab] = useState<TabId>("queues");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);

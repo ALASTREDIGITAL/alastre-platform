@@ -209,5 +209,36 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - TypeScript (`tsc --noEmit`): 0 erros.
   - ESLint: 0 erros nos arquivos alterados.
 
+## Marco de Entrega — Módulo 09: Integrações e Automação (2026-09-25)
+
+- **Escopo Funcional Entregue**:
+  - Central de Automação Operacional e Integrações reestruturada em 7 abas funcionais na Central de Conexões: Conexões & Capabilities, Recursos Vinculados, Sincronizações, Fila & Jobs, Dead Letter & Falhas, Escritas Controladas (Write Plans) e Custos & Limites de IA.
+  - Alternância de visualização entre Modo Simples (padrão) e Modo Avançado (técnico).
+  - Catálogo interno de provedores (`google`, `meta`, `alastre_ai`, `electronic_signature`, `email`) e capacidades (`google_business_profile`, `meta_ads`, `ai_generation`, etc.) com consentimento incremental.
+  - Sincronização incremental com cursores (`sync_cursor`), health checks, limite de tentativas, timeout e backoff exponencial sem duplicações.
+  - Fila de jobs idempotente (`idempotency_key`), deduplicação por tenant, execução simulada/controlada por adapter e roteamento automático de falhas para a fila Dead Letter sem repetição perigosa.
+  - Escritas externas controladas: geração de planos imutáveis com hash SHA-256 de 64 caracteres, exigência de aprovação humana vinculada ao plano exato em `approval_items`, e trava de segurança que retém a execução quando `ALASTRE_WRITE_MODE=disabled`.
+  - Suporte a rollback/compensação restrito a quando o adapter declarar suporte (`supports_rollback`), sem capacidades de rollback inventadas.
+  - Registro de custos e limites de IA sem prompts sensíveis, com exibição mandatória de "Dados Insuficientes (N/D)" quando não houver histórico de consumo.
+  - Tratamento visual seguro de indisponibilidade sem telas brancas ou vazamento de stack técnico.
+
+- **Banco de Dados, API e Segurança**:
+  - Migration forward-only: `supabase/migrations/20260925140000_automation_and_integrations_foundation.sql` aplicada na homologação `fifbtwbndutbvwnbzgtz`.
+  - Tabelas: `automation_sync_states`, `automation_jobs`, `automation_write_plans`, `automation_ai_usage_logs`, `automation_ai_limits`.
+  - Constraints únicas `(agency_id, id)` e Foreign Keys compostas `(agency_id, connection_id)`, `(agency_id, client_id)`, `(agency_id, work_item_id)`, `(agency_id, evidence_id)`.
+  - RLS ativado em 100% das novas tabelas e privilégios revogados para `public`, `anon`, `authenticated` (acesso exclusivo do `service_role`).
+  - Proteção contra SSRF: validador `validateExternalEndpointUrl` restringe endpoints externos estritamente aos domínios autorizados do provedor.
+  - Sanitização de segredos: `sanitizeSensitiveData` limpa tokens, senhas e credenciais de respostas, logs e banco.
+  - Endpoint `POST /api/automation` e `GET /api/automation` com validação Zod, `resolveAuthenticatedActor` e auditoria em `audit_events`.
+
+- **Suíte de Validação**:
+  - 13 testes automatizados focados no Módulo 09 (`tests/automation-and-integrations.test.ts`).
+  - Total da suíte executada do repositório: 393 testes automatizados passando (100% sucesso).
+  - TypeScript (`tsc --noEmit`): 0 erros de compilação.
+  - ESLint: 0 erros e 0 warnings nos arquivos alterados.
+  - Build de Produção: `npm run build` (`vinext build`) concluído com 0 erros.
+  - Supabase Security Advisor / DB Lint: 0 problemas encontrados nas tabelas e políticas do Módulo 09.
+
+
 
 

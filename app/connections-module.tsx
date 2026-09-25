@@ -295,7 +295,10 @@ function GoogleResources() {
   );
 }
 
-export function ConnectionsModule() {
+import { AutomationModule } from "@/components/automation-module";
+
+export function ConnectionsModule({ onNavigate }: { onNavigate?: (view: string) => void }) {
+  const [mainTab, setMainTab] = useState<"connections" | "automation">("connections");
   const [mode, setMode] = useState<"simple" | "advanced">("simple"),
     [selected, setSelected] = useState<ProviderDefinition | null>(null),
     [notice, setNotice] = useState(""),
@@ -406,26 +409,42 @@ export function ConnectionsModule() {
         title="Conecte suas ferramentas"
         description="Escolha o serviço. A Alastre orienta o próximo passo e cuida da configuração técnica."
         helpKey="connections.overview"
-        actions={<div
-          className="mode-switch"
-          role="group"
-          aria-label="Nível de detalhes"
-        >
-          <button
-            className={mode === "simple" ? "active" : ""}
-            onClick={() => setMode("simple")}
+        actions={
+          <div
+            className="mode-switch"
+            role="group"
+            aria-label="Nível de detalhes"
           >
-            Modo simples
-          </button>
-          <button
-            className={mode === "advanced" ? "active" : ""}
-            onClick={() => setMode("advanced")}
-          >
-            <Settings2 />
-            Modo avançado
-          </button>
-        </div>}
+            <button
+              className={mode === "simple" ? "active" : ""}
+              onClick={() => setMode("simple")}
+            >
+              Modo simples
+            </button>
+            <button
+              className={mode === "advanced" ? "active" : ""}
+              onClick={() => setMode("advanced")}
+            >
+              <Settings2 />
+              Modo avançado
+            </button>
+          </div>
+        }
       />
+
+      <div className="tabs-nav" style={{ marginBottom: "1.5rem" }}>
+        <button className={mainTab === "connections" ? "tab-active" : ""} onClick={() => setMainTab("connections")}>
+          <Cloud className="w-4 h-4" /> Provedores & Conexões
+        </button>
+        <button className={mainTab === "automation" ? "tab-active" : ""} onClick={() => setMainTab("automation")}>
+          <Link2 className="w-4 h-4" /> Automação Operacional (Módulo 09)
+        </button>
+      </div>
+
+      {mainTab === "automation" ? (
+        <AutomationModule onNavigate={onNavigate} />
+      ) : (
+        <>
       {mode === "advanced" && <>
       <section className="connection-health-strip">
         <span>
@@ -662,6 +681,8 @@ export function ConnectionsModule() {
             )}
           </aside>
         </div>
+      )}
+      </>
       )}
     </div>
   );
