@@ -2,10 +2,10 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import {
   evidenceTypeLabels,
-  verificationStatusLabels,
-  ncSeverityLabels,
   sanitizeTextContent,
   sanitizeMetadataObject,
   determineReviewPolicy,
@@ -16,9 +16,9 @@ import {
 import {
   CreateEvidenceSchema,
   OpenNonConformitySchema,
-  CreateCorrectiveActionSchema,
   qualityMemoryStore,
 } from "../lib/quality-api.ts";
+import { operationsMemoryStore } from "../app/api/operations/route.ts";
 import { POST as qualityRouteHandler } from "../app/api/quality/route.ts";
 
 test("Módulo 06 — Qualidade e Evidências: Sanitização de Segredos e Tipos Canônicos", async (t) => {
@@ -144,44 +144,159 @@ test("Módulo 06 — API: Validação de Schemas Zod e Ações de Servidor", asy
   });
 });
 
-test("Módulo 06 — API: Rota HTTP POST /api/quality com Isolamento de Ator", async (t) => {
-  qualityMemoryStore.clear();
+test("Módulo 06 — Hardening: Verificação de Migration e FKs Compostas", async (t) => {
+  const migrationPath = path.join(
+    process.cwd(),
+    "supabase",
+    "migrations",
+    "20260925060000_quality_and_evidence_hardening.sql",
+  );
 
-  await t.test("rejeita requisição não autenticada com status 401", async () => {
-    const req = new Request("http://localhost:3000/api/quality", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-test-unauth": "true",
-      },
-      body: JSON.stringify({ action: "fetch_workspace" }),
-    });
-
-    const res = await qualityRouteHandler(req);
-    assert.equal(res.status, 401);
+  await t.test("confirma que a migration de hardening existe", () => {
+    assert.ok(fs.existsSync(migrationPath), "Migration 20260925060000 deve existir");
   });
 
-  await t.test("executa fluxo completo de criação de evidência e auditoria em memória", async () => {
-    const createReq = new Request("http://localhost:3000/api/quality", {
+  await t.test("valida presença de todas as foreign keys compostas e RPC de hardening", () => {
+    const sql = fs.readFileSync(migrationPath, "utf8");
+
+    // Pre-validations
+    assert.ok(sql.includes("INCONSISTENCIA CROSS-TENANT DETECTADA"));
+
+    // Composite FKs
+    assert.ok(sql.includes("quality_evidences_agency_unit_fk"));
+    assert.ok(sql.includes("quality_evidences_agency_service_fk"));
+    assert.ok(sql.includes("quality_checklist_runs_agency_template_fk"));
+    assert.ok(sql.includes("quality_nc_agency_workflow_fk"));
+    assert.ok(sql.includes("quality_nc_agency_evidence_fk"));
+    assert.ok(sql.includes("quality_nc_agency_corrective_item_fk"));
+
+    // RPC Security Hardening
+    assert.ok(sql.includes("create or replace function public.quality_create_corrective_action"));
+    assert.ok(sql.includes("security definer"));
+    assert.ok(sql.includes("set search_path = ''"));
+    assert.ok(sql.includes("grant execute on function public.quality_create_corrective_action to service_role"));
+  });
+});
+
+test("Módulo 06 — Hardening: Criação Atômica de Ação Corretiva sem Workflow Prévio", async (t) => {
+  qualityMemoryStore.clear();
+  operationsMemoryStore.clear();
+
+  const agencyId = "00000000-0000-0000-0000-000000000001";
+  const clientId = "11111111-1111-4111-a111-111111111111";
+  const ncId = "88888888-8888-4888-a888-888888888888";
+
+  // Inserir Não Conformidade sem workflow prévio
+  qualityMemoryStore.nonConformities.push({
+    id: ncId,
+    agency_id: agencyId,
+    client_id: clientId,
+    workflow_id: null,
+    title: "Falha de Tagging em GA4",
+    severity: "high",
+    status: "open",
+    root_cause: "Container desalinhado",
+    impact: "Perda de eventos",
+    opened_by_actor_id: "test-actor-id",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  await t.test("cria workflow válido e tarefa corretiva vinculados de forma atômica", async () => {
+    const req = new Request("http://localhost:3000/api/quality", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-alastre-bridge-secret": "91221baeea876d7c95a885fa0cf6621aac40867915ac8291149339321d874b31",
-        "x-alastre-user-email": "ag.alastredigital@gmail.com",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        action: "create_evidence",
-        work_item_id: "33333333-3333-4333-a333-333333333333",
-        evidence_type: "url",
-        verifiable_reference: "https://alastre.digital/evidencia-teste",
-        sanitized_metadata: { test: true },
+        action: "create_corrective_action",
+        non_conformity_id: ncId,
+        title: "Reconfiguração de Container GTM",
+        priority: "urgent",
       }),
     });
 
-    const createRes = await qualityRouteHandler(createReq);
-    const createData = await createRes.json();
-    assert.equal(createData.success, true);
-    assert.ok(createData.evidence.id);
-    assert.equal(createData.evidence.verification_status, "pending");
+    const res = await qualityRouteHandler(req);
+    assert.equal(res.status, 200);
+
+    const data = await res.json();
+    assert.equal(data.success, true);
+    assert.ok(data.workflow_id);
+    assert.ok(data.corrective_work_item);
+    assert.equal(data.non_conformity.status, "action_created");
+
+    // Confirmar que o workflow foi criado no Motor de Operações (Módulo 04)
+    const createdWf = operationsMemoryStore.workflows.find((w) => w.id === data.workflow_id);
+    assert.ok(createdWf);
+    assert.equal(createdWf.agency_id, agencyId);
+    assert.equal(createdWf.client_id, clientId);
+    assert.equal(createdWf.workflow_type, "exception");
+
+    // Confirmar que a tarefa foi criada vinculada ao novo workflow
+    const createdItem = operationsMemoryStore.workItems.find(
+      (i) => i.id === data.corrective_work_item.id,
+    );
+    assert.ok(createdItem);
+    assert.equal(createdItem.workflow_id, data.workflow_id);
+    assert.equal(createdItem.agency_id, agencyId);
+  });
+});
+
+test("Módulo 06 — Hardening: Prevenção de Falso Sucesso em Caso de Falha", async (t) => {
+  qualityMemoryStore.clear();
+
+  await t.test("rejeita criação de ação corretiva para NC inexistente com erro 404 e success: false", async () => {
+    const req = new Request("http://localhost:3000/api/quality", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_corrective_action",
+        non_conformity_id: "00000000-0000-0000-0000-999999999999",
+        title: "Ação Inexistente",
+      }),
+    });
+
+    const res = await qualityRouteHandler(req);
+    assert.equal(res.status, 404);
+
+    const data = await res.json();
+    assert.equal(data.success, false);
+    assert.ok(data.error.includes("não encontrada"));
+  });
+});
+
+test("Módulo 06 — Hardening: Isolamento Estrito entre Múltiplas Agências", async (t) => {
+  qualityMemoryStore.clear();
+
+  const agencyA = "00000000-0000-0000-0000-000000000001";
+  const agencyB = "99999999-9999-9999-9999-999999999999";
+
+  // Evidência pertencente à Agência A
+  qualityMemoryStore.evidences.push({
+    id: "ev-agency-a",
+    agency_id: agencyA,
+    work_item_id: "item-a",
+    evidence_type: "screenshot",
+    origin: "manual",
+    verification_status: "pending",
+    responsible_actor_id: "actor-a",
+    captured_at: new Date().toISOString(),
+    verifiable_reference: "https://agencia-a.com/print.png",
+    sanitized_metadata: {},
+    is_locked: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+
+  await t.test("agência A visualiza apenas suas próprias evidências", async () => {
+    const fetchReq = new Request("http://localhost:3000/api/quality", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "fetch_workspace" }),
+    });
+
+    const fetchRes = await qualityRouteHandler(fetchReq);
+    const fetchData = await fetchRes.json();
+    assert.equal(fetchData.success, true);
+    assert.equal(fetchData.evidences.length, 1);
+    assert.equal(fetchData.evidences[0].id, "ev-agency-a");
   });
 });

@@ -440,7 +440,7 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
         onNavigate={(view) => navigateToView(view as View)}
       />
     ) : activeView === "operations-engine" ? (
-      <OperationsEngineModule onNavigate={navigateToView} />
+      <OperationsEngineModule onNavigate={(view) => navigateToView(view as View)} />
     ) : activeView === "quality" ? (
       <QualityModuleApp onNavigate={(view) => navigateToView(view as View)} />
     ) : activeView === "costs" ? (

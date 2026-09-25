@@ -472,6 +472,38 @@ export async function POST(request: Request) {
       }
 
       case "create_corrective_action": {
+        // Tentar via RPC atômica do PostgreSQL primeiro
+        if (admin) {
+          try {
+            const { data: rpcData, error: rpcErr } = await admin.rpc("quality_create_corrective_action", {
+              p_agency_id: agencyId,
+              p_non_conformity_id: actionData.non_conformity_id,
+              p_title: actionData.title,
+              p_description: actionData.description || "",
+              p_priority: actionData.priority,
+              p_actor_id: actor.actorId,
+              p_actor_email: actorEmail,
+            });
+
+            if (!rpcErr && rpcData && typeof rpcData === "object") {
+              const resObj = rpcData as { success?: boolean; error?: string; workflow_id?: string; corrective_work_item_id?: string };
+              if (resObj.success === false) {
+                return Response.json({ success: false, error: resObj.error || "Falha na transação atômica de ação corretiva" }, { status: 400 });
+              }
+              if (resObj.success) {
+                return Response.json({
+                  success: true,
+                  workflow_id: resObj.workflow_id,
+                  corrective_work_item_id: resObj.corrective_work_item_id,
+                });
+              }
+            }
+          } catch {
+            // Em dev/test offline onde a RPC ainda não existe remotamente, cai para resolução transacional em memória
+          }
+        }
+
+        // Execução Atômica de fallback (Memória / DB com validação estrita)
         let nc: QualityNonConformity | undefined;
         let useDb = false;
 
@@ -497,9 +529,49 @@ export async function POST(request: Request) {
 
         if (!nc) {
           return Response.json(
-            { success: false, error: "Não conformidade não encontrada" },
+            { success: false, error: "Não conformidade não encontrada ou pertence a outra agência" },
             { status: 404 },
           );
+        }
+
+        // Resolução do Workflow: reaproveitar workflow válido da agência ou criar novo workflow na mesma agência & cliente
+        let targetWorkflowId: string | null = null;
+        if (nc.workflow_id) {
+          let wfExists = false;
+          if (useDb && admin) {
+            const { data: wfData } = await admin
+              .from("workflows")
+              .select("id")
+              .eq("agency_id", agencyId)
+              .eq("id", nc.workflow_id)
+              .eq("client_id", nc.client_id)
+              .maybeSingle();
+            wfExists = !!wfData;
+          } else {
+            wfExists = operationsMemoryStore.workflows.some(
+              (w) => w.agency_id === agencyId && w.id === nc?.workflow_id && w.client_id === nc.client_id,
+            );
+          }
+          if (wfExists) {
+            targetWorkflowId = nc.workflow_id;
+          }
+        }
+
+        // Se não houver workflow válido da agência, criar um novo
+        let newCreatedWorkflow: Record<string, unknown> | null = null;
+        if (!targetWorkflowId) {
+          targetWorkflowId = crypto.randomUUID();
+          newCreatedWorkflow = {
+            id: targetWorkflowId,
+            agency_id: agencyId,
+            client_id: nc.client_id,
+            title: `Workflow de Exceção: ${nc.title.slice(0, 100)}`,
+            workflow_type: "exception",
+            status: "in_progress",
+            priority: actionData.priority,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
         }
 
         // Criar item de trabalho corretivo no Motor de Operações (Módulo 04)
@@ -507,7 +579,7 @@ export async function POST(request: Request) {
           id: crypto.randomUUID(),
           agency_id: agencyId,
           client_id: nc.client_id,
-          workflow_id: nc.workflow_id || crypto.randomUUID(),
+          workflow_id: targetWorkflowId,
           title: `[Ação Corretiva] ${sanitizeTextContent(actionData.title)}`,
           description: `Ação gerada para solução da Não Conformidade NC-${nc.id.slice(0, 8)}: ${nc.title}. Causa: ${nc.root_cause || "Em análise"}`,
           task_type: "manual" as const,
@@ -528,33 +600,60 @@ export async function POST(request: Request) {
         const updatedNC: QualityNonConformity = {
           ...nc,
           status: "action_created",
+          workflow_id: targetWorkflowId,
           corrective_work_item_id: correctiveWorkItem.id,
           updated_at: new Date().toISOString(),
         };
 
+        const auditEntry: QualityAuditHistoryEntry = {
+          id: crypto.randomUUID(),
+          agency_id: agencyId,
+          entity_type: "non_conformity",
+          entity_id: nc.id,
+          action: "modified",
+          actor_id: actor.actorId,
+          previous_state: nc as unknown as Record<string, unknown>,
+          new_state: updatedNC as unknown as Record<string, unknown>,
+          change_reason: "Criação atômica de ação corretiva",
+          created_at: new Date().toISOString(),
+        };
+
         if (useDb && admin) {
           try {
+            if (newCreatedWorkflow) {
+              await admin.from("workflows").insert([newCreatedWorkflow]);
+            }
             await admin.from("work_items").insert([correctiveWorkItem]);
-          } catch {}
-          await admin
-            .from("quality_non_conformities")
-            .update({
-              status: updatedNC.status,
-              corrective_work_item_id: updatedNC.corrective_work_item_id,
-              updated_at: updatedNC.updated_at,
-            })
-            .eq("agency_id", agencyId)
-            .eq("id", nc.id);
+            await admin
+              .from("quality_non_conformities")
+              .update({
+                status: updatedNC.status,
+                workflow_id: updatedNC.workflow_id,
+                corrective_work_item_id: updatedNC.corrective_work_item_id,
+                updated_at: updatedNC.updated_at,
+              })
+              .eq("agency_id", agencyId)
+              .eq("id", nc.id);
+            await admin.from("quality_audit_history").insert([auditEntry]);
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "Erro na transação de ação corretiva";
+            return Response.json({ success: false, error: msg }, { status: 500 });
+          }
         } else {
+          if (newCreatedWorkflow) {
+            operationsMemoryStore.workflows.push(newCreatedWorkflow as any);
+          }
           operationsMemoryStore.workItems.push(correctiveWorkItem as any);
           const idx = qualityMemoryStore.nonConformities.findIndex((item) => item.id === nc?.id);
           if (idx !== -1) {
             qualityMemoryStore.nonConformities[idx] = updatedNC;
           }
+          qualityMemoryStore.auditHistory.push(auditEntry);
         }
 
         return Response.json({
           success: true,
+          workflow_id: targetWorkflowId,
           corrective_work_item: correctiveWorkItem,
           non_conformity: updatedNC,
         });

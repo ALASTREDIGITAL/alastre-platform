@@ -972,9 +972,9 @@ export function CitationsWorkspace({
                   </b>
                 </p>
 
-                {saved?.url && (
+                {Boolean(saved?.url) && (
                   <a
-                    href={String(saved.url)}
+                    href={String(saved?.url || "")}
                     target="_blank"
                     rel="noreferrer"
                     style={{
