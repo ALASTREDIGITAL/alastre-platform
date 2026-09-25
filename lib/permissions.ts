@@ -138,3 +138,15 @@ export function hasModulePermission(
   return true;
 }
 
+/**
+ * 07. Validação centralizada de permissões para Sucesso do Cliente (Módulo 07)
+ */
+export function canWriteClientSuccess(role: string): boolean {
+  return ["owner", "admin", "operations_lead", "commercial_lead", "operator"].includes(role);
+}
+
+export function canApproveClientSuccess(role: string): boolean {
+  return ["owner", "admin", "operations_lead", "commercial_lead"].includes(role);
+}
+
+

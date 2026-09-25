@@ -151,7 +151,7 @@ export const ApproveExpansionSchema = z.object({
   recommendation_id: z.string().uuid("ID da recomendação inválido"),
   client_id: z.string().uuid("ID do cliente inválido"),
   decision: z.enum(["approved", "rejected"]),
-  actor_id: z.string().min(1, "Ator de aprovação é obrigatório"),
+  actor_id: z.string().optional(),
 });
 
 export const CreateCancellationRequestSchema = z.object({
@@ -167,7 +167,7 @@ export const ApproveCancellationSchema = z.object({
   cancellation_id: z.string().uuid("ID da solicitação de cancelamento inválido"),
   client_id: z.string().uuid("ID do cliente inválido"),
   decision: z.enum(["approved", "rejected"]),
-  actor_id: z.string().min(1, "Ator é obrigatório"),
+  actor_id: z.string().optional(),
 });
 
 export const CreateOffboardingInventorySchema = z.object({
