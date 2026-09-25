@@ -442,7 +442,7 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
     ) : activeView === "finance" ? (
       <CapacityFinanceModule onNavigate={(view) => navigateToView(view as View)} selectedClientId={selectedClient} />
     ) : activeView === "operations-engine" ? (
-      <OperationsEngineModule onNavigate={(view) => navigateToView(view as View)} />
+      <OperationsEngineModule onNavigate={navigateToView} />
     ) : activeView === "quality" ? (
       <QualityModuleApp onNavigate={(view) => navigateToView(view as View)} />
     ) : activeView === "client-success" ? (
