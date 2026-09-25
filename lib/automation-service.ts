@@ -513,7 +513,7 @@ export class AutomationService {
 
     // Supabase RPC Transacional Atômica: automation_create_write_plan
     const { data: rpcRes, error: rpcErr } = await this.db!.rpc("automation_create_write_plan", {
-      p_email: actor.actorId, // O actor email é resolvido via platform_resolve_actor
+      p_actor_id: actor.actorId,
       p_client_id: input.client_id ?? null,
       p_connection_id: input.connection_id ?? null,
       p_work_item_id: input.work_item_id ?? null,
@@ -526,61 +526,10 @@ export class AutomationService {
     });
 
     if (rpcErr || !rpcRes) {
-      // Tenta insert direto transacional via Supabase client se RPC não estiver instalada ainda no teste
-      const planId = `plan-${Date.now()}`;
-
-      const { data: apprItem, error: apprErr } = await this.db!
-        .from("approval_items")
-        .insert({
-          agency_id: actor.agencyId,
-          client_id: input.client_id ?? null,
-          source_type: "automation_write",
-          source_id: planId,
-          status: "pending",
-          title: `Escrita Externa: ${input.action_type} (${input.capability})`,
-          summary: `Plano imutável registrado com hash SHA-256 ${planHash.slice(0, 12)}...`,
-          proposed_payload: { plan_hash: planHash, plan: sanitizedPlan },
-          created_by_actor_id: actor.actorId,
-        })
-        .select("id")
-        .single();
-
-      if (apprErr || !apprItem) throw new Error("approval_item_create_failed");
-
-      const { data: plan, error: planErr } = await this.db!
-        .from("automation_write_plans")
-        .insert({
-          id: planId,
-          agency_id: actor.agencyId,
-          client_id: input.client_id ?? null,
-          connection_id: input.connection_id ?? null,
-          approval_item_id: apprItem.id,
-          work_item_id: input.work_item_id ?? null,
-          capability: input.capability,
-          action_type: input.action_type,
-          plan_hash: planHash,
-          sanitized_plan: sanitizedPlan,
-          status: "pending_approval",
-          supports_rollback: input.supports_rollback ?? false,
-          compensation_plan: input.compensation_plan ? sanitizeSensitiveData(input.compensation_plan) : null,
-          created_by_actor_id: actor.actorId,
-        })
-        .select("*")
-        .single();
-
-      if (planErr || !plan) {
-        // Remove item orfao
-        await this.db!.from("approval_items").delete().eq("agency_id", actor.agencyId).eq("id", apprItem.id);
-        throw new Error("write_plan_create_failed");
-      }
-
-      await this.audit(actor, "automation.write_plan_created", "automation_write_plan", plan.id, {
-        plan_hash: planHash,
-        capability: input.capability,
-        action_type: input.action_type,
-      });
-
-      return plan as AutomationWritePlanRecord;
+      const errMsg = rpcErr?.message ?? "write_plan_create_failed";
+      if (errMsg.includes("actor_forbidden")) throw new Error("actor_forbidden");
+      if (errMsg.includes("invalid_plan_hash")) throw new Error("invalid_plan_hash");
+      throw new Error("write_plan_create_failed");
     }
 
     return rpcRes as AutomationWritePlanRecord;
@@ -633,65 +582,25 @@ export class AutomationService {
       return plan;
     }
 
-    const { data: plan, error: planErr } = await this.db!
-      .from("automation_write_plans")
-      .select("*")
-      .eq("agency_id", actor.agencyId)
-      .eq("id", input.plan_id)
-      .maybeSingle();
-
-    if (planErr || !plan) throw new Error("write_plan_not_found");
-    if (plan.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
-    if (plan.status !== "pending_approval") throw new Error("write_plan_not_pending");
-
-    const { data: apprItem, error: apprErr } = await this.db!
-      .from("approval_items")
-      .select("*")
-      .eq("agency_id", actor.agencyId)
-      .eq("id", plan.approval_item_id)
-      .eq("source_type", "automation_write")
-      .eq("source_id", plan.id)
-      .maybeSingle();
-
-    if (apprErr || !apprItem) throw new Error("approval_item_not_found");
-    if (apprItem.status !== "pending") throw new Error("approval_item_not_pending");
-    if ((apprItem.proposed_payload as Record<string, unknown>)?.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
-
-    const now = new Date().toISOString();
-
-    await this.db!
-      .from("approval_items")
-      .update({
-        status: "approved",
-        decided_by_actor_id: actor.actorId,
-        decided_at: now,
-        decision_notes: input.decision_notes ?? "Aprovado via Central de Aprovações",
-        updated_at: now,
-      })
-      .eq("agency_id", actor.agencyId)
-      .eq("id", apprItem.id);
-
-    const { data: updatedPlan, error: updErr } = await this.db!
-      .from("automation_write_plans")
-      .update({
-        status: "approved",
-        approved_by_actor_id: actor.actorId,
-        approved_at: now,
-        updated_at: now,
-      })
-      .eq("agency_id", actor.agencyId)
-      .eq("id", plan.id)
-      .select("*")
-      .single();
-
-    if (updErr || !updatedPlan) throw new Error("write_plan_update_failed");
-
-    await this.audit(actor, "automation.write_plan_approved", "automation_write_plan", plan.id, {
-      plan_hash: input.plan_hash,
-      approval_item_id: apprItem.id,
+    const { data: rpcRes, error: rpcErr } = await this.db!.rpc("automation_approve_write_plan", {
+      p_actor_id: actor.actorId,
+      p_plan_id: input.plan_id,
+      p_plan_hash: input.plan_hash,
+      p_decision_notes: input.decision_notes ?? "Aprovado via Central de Aprovações",
     });
 
-    return updatedPlan as AutomationWritePlanRecord;
+    if (rpcErr || !rpcRes) {
+      const errMsg = rpcErr?.message ?? "write_plan_approve_failed";
+      if (errMsg.includes("actor_forbidden")) throw new Error("actor_forbidden");
+      if (errMsg.includes("write_plan_not_found")) throw new Error("write_plan_not_found");
+      if (errMsg.includes("plan_hash_mismatch")) throw new Error("plan_hash_mismatch");
+      if (errMsg.includes("write_plan_not_pending")) throw new Error("write_plan_not_pending");
+      if (errMsg.includes("approval_item_not_found")) throw new Error("approval_item_not_found");
+      if (errMsg.includes("approval_item_not_pending")) throw new Error("approval_item_not_pending");
+      throw new Error("write_plan_approve_failed");
+    }
+
+    return rpcRes as AutomationWritePlanRecord;
   }
 
   /**
@@ -767,79 +676,27 @@ export class AutomationService {
       return { plan, executed: true, reason: null };
     }
 
-    const { data: plan, error: planErr } = await this.db!
-      .from("automation_write_plans")
-      .select("*")
-      .eq("agency_id", actor.agencyId)
-      .eq("id", input.plan_id)
-      .maybeSingle();
-
-    if (planErr || !plan) throw new Error("write_plan_not_found");
-    if (plan.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
-
-    // Idempotência / Replay Check
-    if (["executed", "blocked_write_mode", "rejected", "cancelled"].includes(plan.status)) {
-      throw new Error("plan_already_processed");
-    }
-
-    if (plan.status !== "approved") {
-      throw new Error("write_plan_not_approved");
-    }
-
-    const { data: apprItem, error: apprErr } = await this.db!
-      .from("approval_items")
-      .select("*")
-      .eq("agency_id", actor.agencyId)
-      .eq("id", plan.approval_item_id)
-      .eq("source_type", "automation_write")
-      .eq("source_id", plan.id)
-      .maybeSingle();
-
-    if (apprErr || !apprItem || apprItem.status !== "approved") {
-      throw new Error("approval_item_not_approved");
-    }
-
-    if ((apprItem.proposed_payload as Record<string, unknown>)?.plan_hash !== input.plan_hash) {
-      throw new Error("plan_hash_mismatch");
-    }
-
-    const now = new Date().toISOString();
-    let targetStatus: "blocked_write_mode" | "executed" = "blocked_write_mode";
-    let blockedReason: string | null = null;
-
-    if (currentWriteMode === "disabled") {
-      targetStatus = "blocked_write_mode";
-      blockedReason = "ALASTRE_WRITE_MODE está configurado como 'disabled'. A execução externa foi bloqueada em segurança.";
-    } else {
-      targetStatus = "executed";
-    }
-
-    const { data: updatedPlan, error: updateErr } = await this.db!
-      .from("automation_write_plans")
-      .update({
-        status: targetStatus,
-        executed_at: targetStatus === "executed" ? now : null,
-        updated_at: now,
-      })
-      .eq("agency_id", actor.agencyId)
-      .eq("id", plan.id)
-      .select("*")
-      .single();
-
-    if (updateErr || !updatedPlan) throw new Error("write_plan_update_failed");
-
-    // PRESERVA o item de aprovação (NÃO altera de 'approved' para 'rejected')
-
-    await this.audit(actor, `automation.write_plan_${targetStatus}`, "automation_write_plan", plan.id, {
-      plan_hash: input.plan_hash,
-      status: targetStatus,
-      reason: blockedReason,
+    const { data: rpcRes, error: rpcErr } = await this.db!.rpc("automation_execute_write_plan", {
+      p_actor_id: actor.actorId,
+      p_plan_id: input.plan_id,
+      p_plan_hash: input.plan_hash,
     });
 
-    return {
-      plan: updatedPlan as AutomationWritePlanRecord,
-      executed: targetStatus === "executed",
-      reason: blockedReason,
+    if (rpcErr || !rpcRes) {
+      const errMsg = rpcErr?.message ?? "write_plan_execute_failed";
+      if (errMsg.includes("actor_forbidden")) throw new Error("actor_forbidden");
+      if (errMsg.includes("write_plan_not_found")) throw new Error("write_plan_not_found");
+      if (errMsg.includes("plan_hash_mismatch")) throw new Error("plan_hash_mismatch");
+      if (errMsg.includes("plan_already_processed")) throw new Error("plan_already_processed");
+      if (errMsg.includes("write_plan_not_approved")) throw new Error("write_plan_not_approved");
+      if (errMsg.includes("approval_item_not_approved")) throw new Error("approval_item_not_approved");
+      throw new Error("write_plan_execute_failed");
+    }
+
+    return rpcRes as {
+      plan: AutomationWritePlanRecord;
+      executed: boolean;
+      reason: string | null;
     };
   }
 

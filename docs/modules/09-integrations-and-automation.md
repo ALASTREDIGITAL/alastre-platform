@@ -27,13 +27,17 @@ Transformar as integrações existentes em uma camada operacional segura, modula
    - Toda execução gera registro imutável em `audit_events` e vínculo a evidências de qualidade.
    - Falhas nunca são convertidas em falso sucesso.
 
-4. **Escritas Externas Controladas, Aprovação Real e SoD**:
+4. **Escritas Externas Controladas, Uso Exclusivo de RPCs e SoD**:
    - Segregação de Funções (SoD) centralizada em `lib/permissions.ts`: `operator` e `viewer` NUNCA podem aprovar, cancelar aprovação, autorizar ou executar planos de escrita externa (acesso exclusivo para `owner`, `admin` e `operations_lead`).
-   - Toda intenção de escrita gera atomicamente um plano imutável (`automation_write_plans`) e seu item de aprovação (`approval_items` com `source_type = 'automation_write'`) via RPC transacional ou fallback com rollback de órfão.
-   - Execução segregada: `executeWritePlan` exige aprovação prévia no plano (`status = 'approved'`) e no `approval_item`, verificando equivalence de hashes.
+   - **Eliminação de Escrita Direta**: Em banco configurado, `createWritePlan`, `approveWritePlan` e `executeWritePlan` executam **exclusivamente via RPCs transacionais**:
+     - `automation_create_write_plan`
+     - `automation_approve_write_plan`
+     - `automation_execute_write_plan`
+   - Parâmetro canônico `p_actor_id` nas RPCs resolve de forma inequívoca o ator autenticado (`agency_actors.id` ou email) via `service_role`.
+   - Se qualquer RPC falhar ou retornar erro, a aplicação rejeita a operação com erro seguro HTTP 500/503. Nenhuma escrita direta, fallback ou alteração parcial de tabela é permitida.
+   - Execução segregada: `executeWritePlan` exige aprovação prévia no plano (`status = 'approved'`) e no `approval_item`, verificando equivalência de hashes.
    - Trava de segurança: com `ALASTRE_WRITE_MODE=disabled`, a execução transiciona o plano para `blocked_write_mode` com justificativa explícita e PRESERVA o `approval_item` como `approved` (sem rebaixá-lo ou marcá-lo como rejected).
    - Validação de integridade de hash no servidor impedindo tampering ou alteração posterior de payload, com bloqueio de dupla execução / replay check.
-   - Suporte a rollback/compensação apenas quando o adapter declarar suporte (`supports_rollback`).
 
 5. **Custos e Limites de IA**:
    - Logs de uso de IA (`automation_ai_usage_logs`) com contagem de tokens in/out, custo estimado e resumo sanitizado sem prompts sensíveis.
@@ -49,7 +53,8 @@ Transformar as integrações existentes em uma camada operacional segura, modula
 
 - **Migrations Forward-Only**:
   - `supabase/migrations/20260925140000_automation_and_integrations_foundation.sql`
-  - `supabase/migrations/20260925150000_automation_write_plan_hardening.sql` (hardened: unicidade composta `approval_items(agency_id, id)`, FKs por tenant, RPCs com privilégios exclusivos para `service_role`).
+  - `supabase/migrations/20260925150000_automation_write_plan_hardening.sql`
+  - `supabase/migrations/20260925160000_automation_rpc_strict_transactional.sql` (hardened: parâmetro `p_actor_id`, eliminação de escritas diretas, privilégios exclusivos para `service_role`).
 - **Tabelas Criadas / Modificadas**: `automation_sync_states`, `automation_jobs`, `automation_write_plans`, `automation_ai_usage_logs`, `automation_ai_limits`, `approval_items`.
 - **Isolamento Multi-Tenant**: Unique constraints `(agency_id, id)` e Foreign Keys compostas com `agency_id`.
 - **RLS Ativado**: Privilégios revogados de `public`, `anon` e `authenticated`; acesso de servidor exclusivamente via `service_role`.
@@ -58,7 +63,7 @@ Transformar as integrações existentes em uma camada operacional segura, modula
 
 ## Validação Realizada
 
-- **Suíte de Testes do Módulo 09**: 14/14 testes passando em `tests/automation-and-integrations.test.ts` (cobrindo SoD, aprovação real, atomicidade, replay check, SSRF, sanitização e API handler).
+- **Suíte de Testes do Módulo 09**: 15/15 testes passando em `tests/automation-and-integrations.test.ts` (cobrindo SoD, aprovação real, atomicidade, ausência de fallbacks diretos, replay check, SSRF, sanitização e API handler).
 - **TypeScript**: `npx tsc --noEmit` executado com 0 erros.
 - **ESLint**: `npx eslint` executado nos arquivos alterados com 0 erros e 0 warnings.
 - **Migrations Remotas**: Aplicadas com sucesso na homologação `fifbtwbndutbvwnbzgtz`.

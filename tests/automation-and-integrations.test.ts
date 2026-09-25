@@ -476,4 +476,46 @@ test("Módulo 09 — Integrações e Automação: Suíte de Validação Operacio
     assert.equal(execResult.executed, false);
     assert.equal(execResult.plan.status, "blocked_write_mode");
   });
+
+  await t.test("14. Garantia de Ausência de Fallbacks Diretos de Tabela em Modo DB", async () => {
+    // Injeta mock DB client que simula erro na chamada de RPC para garantir que nenhuma escrita direta é tentada
+    const fakeDbService = new AutomationService();
+    (fakeDbService as any).isDbAvailable = () => true;
+    (fakeDbService as any).db = {
+      rpc: async (fnName: string) => {
+        return { data: null, error: { message: `simulated_rpc_failure_in_${fnName}` } };
+      },
+    };
+
+    await assert.rejects(
+      async () => {
+        await fakeDbService.createWritePlan(adminActor, {
+          capability: "google_business_profile",
+          action_type: "update_website",
+          plan_payload: { url: "https://example.com" },
+        });
+      },
+      (err: unknown) => err instanceof Error && err.message === "write_plan_create_failed",
+    );
+
+    await assert.rejects(
+      async () => {
+        await fakeDbService.approveWritePlan(adminActor, {
+          plan_id: "00000000-0000-0000-0000-000000000001",
+          plan_hash: "a".repeat(64),
+        });
+      },
+      (err: unknown) => err instanceof Error && err.message === "write_plan_approve_failed",
+    );
+
+    await assert.rejects(
+      async () => {
+        await fakeDbService.executeWritePlan(adminActor, {
+          plan_id: "00000000-0000-0000-0000-000000000001",
+          plan_hash: "a".repeat(64),
+        });
+      },
+      (err: unknown) => err instanceof Error && err.message === "write_plan_execute_failed",
+    );
+  });
 });
