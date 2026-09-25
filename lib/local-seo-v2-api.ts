@@ -1,9 +1,12 @@
 import { z } from "zod";
 import { createSupabaseBrowserClient } from "./supabase.ts";
+
 const id = z.string().uuid(),
   text = (max: number) => z.string().trim().min(1).max(max),
   optionalText = (max: number) => z.string().trim().max(max).optional();
+
 const client = z.object({ client_id: id });
+
 export const localSeoV2Request = z.discriminatedUnion("action", [
   z.object({ action: z.literal("clients") }),
   client.extend({ action: z.literal("workspace") }),
@@ -78,6 +81,16 @@ export const localSeoV2Request = z.discriminatedUnion("action", [
       .nullable()
       .optional(),
     source: z.enum(["manual", "dna_suggestion"]),
+    data_origin: z
+      .enum([
+        "provider",
+        "manual",
+        "evidence",
+        "inference",
+        "hypothesis",
+        "unavailable",
+      ])
+      .optional(),
   }),
   client.extend({ action: z.literal("calculate_score") }),
   client.extend({ action: z.literal("generate_opportunities") }),
@@ -94,7 +107,42 @@ export const localSeoV2Request = z.discriminatedUnion("action", [
       "dismissed",
     ]),
   }),
+  client.extend({
+    action: z.literal("opportunity_create_work_item"),
+    id: id,
+  }),
+  client.extend({
+    action: z.literal("post_create_work_item"),
+    id: id,
+  }),
+  client.extend({
+    action: z.literal("review_request_work_item"),
+    title: optionalText(180),
+  }),
+  client.extend({
+    action: z.literal("citation_save"),
+    id: id.optional(),
+    directory_name: text(180),
+    url: optionalText(500),
+    status: z.enum([
+      "verified",
+      "inconsistent",
+      "missing",
+      "submitted",
+      "not_applicable",
+    ]),
+    nap_status: z.enum([
+      "consistent",
+      "name_mismatch",
+      "address_mismatch",
+      "phone_mismatch",
+      "unverified",
+    ]),
+    evidence_note: optionalText(2000),
+    source: z.enum(["manual", "provider", "inference"]).optional().default("manual"),
+  }),
 ]);
+
 export type LocalSeoV2Request = z.infer<typeof localSeoV2Request>;
 
 export function calculatePartialScore(
@@ -129,6 +177,7 @@ export function calculatePartialScore(
     },
   };
 }
+
 export function deterministicOpportunityRules(input: {
   checks: Array<{ status: string; check_key: string }>;
   approvedKeywords: number;
@@ -228,7 +277,13 @@ export async function postLocalSeoV2(
   const data = await response.json().catch(() => null);
   if (!response.ok || !data || typeof data !== "object" || Array.isArray(data)) {
     const code = data && typeof data === "object" && "error" in data ? String(data.error) : "";
-    throw new Error(response.status === 503 ? "Persistência interna indisponível." : code === "actor_forbidden" ? "Seu perfil não permite esta alteração." : "Não foi possível concluir a operação.");
+    throw new Error(
+      response.status === 503
+        ? "Persistência interna indisponível."
+        : code === "actor_forbidden"
+          ? "Seu perfil não permite esta alteração."
+          : "Não foi possível concluir a operação.",
+    );
   }
   return data as Record<string, unknown>;
 }

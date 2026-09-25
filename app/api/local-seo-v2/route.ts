@@ -10,8 +10,10 @@ import {
 } from "@/lib/local-seo-v2-api";
 
 export const dynamic = "force-dynamic";
+
 const roleCanWrite = (role: string) =>
   ["owner", "admin", "operator"].includes(role);
+
 export async function POST(request: Request) {
   const email = await extractAuthenticatedEmail(request);
   if (!email)
@@ -23,17 +25,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   const db = createSupabaseAdmin();
   if (!db) {
-    const functionUrl = serverEnv("SUPABASE_GOOGLE_ADS_BRIDGE_URL"), bridgeSecret = serverEnv("ALASTRE_BRIDGE_SECRET");
-    if (!functionUrl || !bridgeSecret) return NextResponse.json({ error: "persistence_not_configured" }, { status: 503 });
-    const response = await fetch(functionUrl, { method:"POST", headers:{"Content-Type":"application/json","x-alastre-user-email":email,"x-alastre-bridge-secret":bridgeSecret,"x-alastre-write-mode":serverEnv("ALASTRE_WRITE_MODE")??"disabled"}, body:JSON.stringify({...parsed.data,action:`local_seo_v2_${parsed.data.action}`}) });
-    return new NextResponse(await response.text(), { status:response.status, headers:{"Content-Type":"application/json"} });
+    const functionUrl = serverEnv("SUPABASE_GOOGLE_ADS_BRIDGE_URL"),
+      bridgeSecret = serverEnv("ALASTRE_BRIDGE_SECRET");
+    if (!functionUrl || !bridgeSecret)
+      return NextResponse.json(
+        { error: "persistence_not_configured" },
+        { status: 503 },
+      );
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-alastre-user-email": email,
+        "x-alastre-bridge-secret": bridgeSecret,
+        "x-alastre-write-mode":
+          serverEnv("ALASTRE_WRITE_MODE") ?? "disabled",
+      },
+      body: JSON.stringify({
+        ...parsed.data,
+        action: `local_seo_v2_${parsed.data.action}`,
+      }),
+    });
+    return new NextResponse(await response.text(), {
+      status: response.status,
+      headers: { "Content-Type": "application/json" },
+    });
   }
   try {
     const repository = new ConnectionHubRepository(db),
       actor = await repository.resolveActor(email),
       input = parsed.data;
     if (input.action === "clients") {
-      const result = await db.from("clients").select("id,name,status,city,state,vertical").eq("agency_id", actor.agencyId).order("name");
+      const result = await db
+        .from("clients")
+        .select("id,name,status,city,state,vertical")
+        .eq("agency_id", actor.agencyId)
+        .order("name");
       if (result.error) throw new Error("clients_load_failed");
       return NextResponse.json({ clients: result.data ?? [] });
     }
@@ -45,6 +72,7 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (client.error || !client.data)
       return NextResponse.json({ error: "client_not_found" }, { status: 404 });
+
     if (input.action === "workspace") {
       const results = await Promise.all([
         db
@@ -82,9 +110,24 @@ export async function POST(request: Request) {
           .eq("agency_id", actor.agencyId)
           .eq("client_id", input.client_id)
           .order("detected_at", { ascending: false }),
+        db
+          .from("local_seo_citations")
+          .select("*")
+          .eq("agency_id", actor.agencyId)
+          .eq("client_id", input.client_id)
+          .order("updated_at", { ascending: false }),
+        db
+          .from("work_items")
+          .select("id,title,status,priority,due_date,created_at")
+          .eq("agency_id", actor.agencyId)
+          .eq("client_id", input.client_id)
+          .order("created_at", { ascending: false })
+          .limit(30),
       ]);
-      if (results.some((result) => result.error))
-        throw new Error("workspace_failed");
+
+      const baseError = results.slice(0, 6).some((r) => r.error);
+      if (baseError) throw new Error("workspace_failed");
+
       return NextResponse.json({
         services: results[0].data ?? [],
         keywords: results[1].data ?? [],
@@ -92,10 +135,14 @@ export async function POST(request: Request) {
         checks: results[3].data ?? [],
         scores: results[4].data ?? [],
         opportunities: results[5].data ?? [],
+        citations: results[6].data ?? [],
+        work_items: results[7].data ?? [],
       });
     }
+
     if (!roleCanWrite(actor.role))
       return NextResponse.json({ error: "actor_forbidden" }, { status: 403 });
+
     if (input.action === "services_set") {
       const rows = input.services.map((service_key) => ({
         agency_id: actor.agencyId,
@@ -125,6 +172,7 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ services: input.services });
     }
+
     if (input.action === "keyword_save") {
       const values = {
         agency_id: actor.agencyId,
@@ -162,6 +210,7 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ item: result.data });
     }
+
     if (input.action === "keyword_status") {
       const result = await db
         .from("local_seo_keywords")
@@ -185,6 +234,7 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ item: result.data });
     }
+
     if (input.action === "competitor_save") {
       const values = {
         agency_id: actor.agencyId,
@@ -224,6 +274,7 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ item: result.data });
     }
+
     if (input.action === "competitor_status") {
       const result = await db
         .from("local_seo_competitors")
@@ -246,6 +297,7 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ item: result.data });
     }
+
     if (input.action === "audit_save") {
       const values = {
         agency_id: actor.agencyId,
@@ -257,6 +309,7 @@ export async function POST(request: Request) {
         priority: input.priority ?? null,
         responsible_actor_id: actor.actorId,
         source: input.source,
+        data_origin: input.data_origin || "manual",
         checked_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -275,10 +328,44 @@ export async function POST(request: Request) {
           check_key: input.check_key,
           status: input.status,
           source: input.source,
+          data_origin: values.data_origin,
         },
       );
       return NextResponse.json({ item: result.data });
     }
+
+    if (input.action === "citation_save") {
+      const values = {
+        agency_id: actor.agencyId,
+        client_id: input.client_id,
+        directory_name: input.directory_name,
+        url: input.url || null,
+        status: input.status,
+        nap_status: input.nap_status,
+        evidence_note: input.evidence_note || null,
+        source: input.source || "manual",
+        updated_at: new Date().toISOString(),
+      };
+      const result = await db
+        .from("local_seo_citations")
+        .upsert(values, { onConflict: "client_id,directory_name" })
+        .select()
+        .single();
+      if (result.error) throw new Error("citation_save_failed");
+      await repository.audit(
+        actor,
+        "citation.updated",
+        "local_seo_citation",
+        result.data.id,
+        {
+          directory_name: input.directory_name,
+          status: input.status,
+          nap_status: input.nap_status,
+        },
+      );
+      return NextResponse.json({ item: result.data });
+    }
+
     if (input.action === "opportunity_status") {
       const result = await db
         .from("local_seo_opportunities")
@@ -302,8 +389,270 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ item: result.data });
     }
-    const [checksResult, keywordsResult, competitorsResult] = await Promise.all(
-      [
+
+    if (input.action === "opportunity_create_work_item") {
+      const oppResult = await db
+        .from("local_seo_opportunities")
+        .select("*")
+        .eq("agency_id", actor.agencyId)
+        .eq("client_id", input.client_id)
+        .eq("id", input.id)
+        .single();
+      if (oppResult.error || !oppResult.data)
+        throw new Error("opportunity_not_found");
+      const opp = oppResult.data;
+
+      let workflowId: string | null = null;
+      const wfResult = await db
+        .from("workflows")
+        .select("id")
+        .eq("agency_id", actor.agencyId)
+        .eq("client_id", input.client_id)
+        .eq("status", "in_progress")
+        .limit(1)
+        .maybeSingle();
+
+      if (wfResult.data) {
+        workflowId = wfResult.data.id;
+      } else {
+        const newWf = await db
+          .from("workflows")
+          .insert({
+            agency_id: actor.agencyId,
+            client_id: input.client_id,
+            title: "Plano de Ação de SEO Local",
+            workflow_type: "one_off",
+            status: "in_progress",
+            priority: opp.priority || "medium",
+            progress_percentage: 0,
+            total_estimated_minutes: 60,
+            total_actual_minutes: 0,
+          })
+          .select()
+          .single();
+        if (newWf.error) throw new Error("workflow_creation_failed");
+        workflowId = newWf.data.id;
+      }
+
+      const itemResult = await db
+        .from("work_items")
+        .insert({
+          agency_id: actor.agencyId,
+          client_id: input.client_id,
+          workflow_id: workflowId,
+          title: `[SEO Local] ${opp.title}`,
+          description: `Diagnóstico: ${opp.diagnosis || ""}\nRecomendação: ${opp.recommendation || ""}\nAção Sugerida: ${opp.suggested_action || ""}`,
+          task_type: "manual",
+          frequency: "one_off",
+          status: "todo",
+          priority: opp.priority || "medium",
+          estimated_minutes: 45,
+          sla_hours:
+            opp.priority === "critical"
+              ? 24
+              : opp.priority === "high"
+                ? 48
+                : 72,
+          evidence_required: true,
+          acceptance_criteria:
+            opp.recommendation || "Conclusão auditada com evidência.",
+        })
+        .select()
+        .single();
+
+      if (itemResult.error) throw new Error("work_item_creation_failed");
+
+      await db
+        .from("local_seo_opportunities")
+        .update({
+          work_item_id: itemResult.data.id,
+          status: "action_prepared",
+          updated_by_actor_id: actor.actorId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("agency_id", actor.agencyId)
+        .eq("client_id", input.client_id)
+        .eq("id", input.id);
+
+      await repository.audit(
+        actor,
+        "opportunity.work_item_created",
+        "local_seo_opportunity",
+        input.id,
+        { work_item_id: itemResult.data.id },
+      );
+
+      return NextResponse.json({
+        item: itemResult.data,
+        opportunity_id: input.id,
+      });
+    }
+
+    if (input.action === "post_create_work_item") {
+      const postResult = await db
+        .from("local_seo_posts")
+        .select("*")
+        .eq("agency_id", actor.agencyId)
+        .eq("client_id", input.client_id)
+        .eq("id", input.id)
+        .single();
+      if (postResult.error || !postResult.data)
+        throw new Error("post_not_found");
+      const post = postResult.data;
+
+      let workflowId: string | null = null;
+      const wfResult = await db
+        .from("workflows")
+        .select("id")
+        .eq("agency_id", actor.agencyId)
+        .eq("client_id", input.client_id)
+        .eq("status", "in_progress")
+        .limit(1)
+        .maybeSingle();
+
+      if (wfResult.data) {
+        workflowId = wfResult.data.id;
+      } else {
+        const newWf = await db
+          .from("workflows")
+          .insert({
+            agency_id: actor.agencyId,
+            client_id: input.client_id,
+            title: "Recorrência de Conteúdo Local",
+            workflow_type: "recurring_monthly",
+            status: "in_progress",
+            priority: "medium",
+            progress_percentage: 0,
+            total_estimated_minutes: 120,
+            total_actual_minutes: 0,
+          })
+          .select()
+          .single();
+        if (newWf.error) throw new Error("workflow_creation_failed");
+        workflowId = newWf.data.id;
+      }
+
+      const itemResult = await db
+        .from("work_items")
+        .insert({
+          agency_id: actor.agencyId,
+          client_id: input.client_id,
+          workflow_id: workflowId,
+          title: `[Conteúdo GBP] Post: ${post.theme || "Nova Postagem"}`,
+          description: `Texto do Post:\n${post.body || ""}\nCTA: ${post.cta || "Nenhum"}\nTipo: ${post.post_type || "standard"}`,
+          task_type: "hybrid",
+          frequency: "one_off",
+          status: "todo",
+          priority: "medium",
+          estimated_minutes: 30,
+          sla_hours: 48,
+          requires_approval: true,
+          evidence_required: true,
+          acceptance_criteria:
+            "Aprovação humana e evidência de homologação enviada.",
+        })
+        .select()
+        .single();
+
+      if (itemResult.error) throw new Error("work_item_creation_failed");
+
+      await db
+        .from("local_seo_posts")
+        .update({
+          work_item_id: itemResult.data.id,
+          updated_by_actor_id: actor.actorId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("agency_id", actor.agencyId)
+        .eq("client_id", input.client_id)
+        .eq("id", input.id);
+
+      await repository.audit(
+        actor,
+        "post.work_item_created",
+        "local_seo_post",
+        input.id,
+        { work_item_id: itemResult.data.id },
+      );
+
+      return NextResponse.json({
+        item: itemResult.data,
+        post_id: input.id,
+      });
+    }
+
+    if (input.action === "review_request_work_item") {
+      let workflowId: string | null = null;
+      const wfResult = await db
+        .from("workflows")
+        .select("id")
+        .eq("agency_id", actor.agencyId)
+        .eq("client_id", input.client_id)
+        .eq("status", "in_progress")
+        .limit(1)
+        .maybeSingle();
+
+      if (wfResult.data) {
+        workflowId = wfResult.data.id;
+      } else {
+        const newWf = await db
+          .from("workflows")
+          .insert({
+            agency_id: actor.agencyId,
+            client_id: input.client_id,
+            title: "Campanha de Solicitação de Avaliações",
+            workflow_type: "one_off",
+            status: "in_progress",
+            priority: "medium",
+            progress_percentage: 0,
+            total_estimated_minutes: 90,
+            total_actual_minutes: 0,
+          })
+          .select()
+          .single();
+        if (newWf.error) throw new Error("workflow_creation_failed");
+        workflowId = newWf.data.id;
+      }
+
+      const itemResult = await db
+        .from("work_items")
+        .insert({
+          agency_id: actor.agencyId,
+          client_id: input.client_id,
+          workflow_id: workflowId,
+          title:
+            input.title ||
+            "[Reputação] Coleta Ativa de Avaliações com Clientes",
+          description:
+            "Disparar convites ou QR Code de avaliação para clientes recentes da empresa e registrar retornos.",
+          task_type: "manual",
+          frequency: "weekly",
+          status: "todo",
+          priority: "medium",
+          estimated_minutes: 60,
+          sla_hours: 48,
+          evidence_required: true,
+          acceptance_criteria:
+            "Pelo menos 5 solicitações enviadas com registro de envio.",
+        })
+        .select()
+        .single();
+
+      if (itemResult.error) throw new Error("work_item_creation_failed");
+
+      await repository.audit(
+        actor,
+        "review.request_work_item_created",
+        "work_item",
+        itemResult.data.id,
+        {},
+      );
+
+      return NextResponse.json({ item: itemResult.data });
+    }
+
+    const [checksResult, keywordsResult, competitorsResult] =
+      await Promise.all([
         db
           .from("local_seo_profile_checks")
           .select("check_key,status")
@@ -321,10 +670,15 @@ export async function POST(request: Request) {
           .eq("agency_id", actor.agencyId)
           .eq("client_id", input.client_id)
           .eq("status", "active"),
-      ],
-    );
-    if (checksResult.error || keywordsResult.error || competitorsResult.error)
+      ]);
+
+    if (
+      checksResult.error ||
+      keywordsResult.error ||
+      competitorsResult.error
+    )
       throw new Error("evidence_load_failed");
+
     if (input.action === "calculate_score") {
       const score = calculatePartialScore(checksResult.data ?? []);
       if (!score)
@@ -351,6 +705,7 @@ export async function POST(request: Request) {
       );
       return NextResponse.json({ score: result.data });
     }
+
     const rules = deterministicOpportunityRules({
         checks: checksResult.data ?? [],
         approvedKeywords: keywordsResult.count ?? 0,
