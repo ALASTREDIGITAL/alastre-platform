@@ -163,6 +163,23 @@ test("03. API: Ciclo de vida operacional completo do Onboarding", async () => {
   const invalidWaiveRes = await POST(invalidWaiveReq);
   assert.strictEqual(invalidWaiveRes.status, 400);
 
+  // 6.2 Atualizar e Confirmar DNA com campos mínimos
+  const dnaReq = createMockRequest({
+    action: "update_dna",
+    onboardingId,
+    status: "confirmed",
+    facts: {
+      company_name: "Vidraçaria Cristal Sorocaba",
+      segment: "Vidraçaria e Esquadrias",
+      city: "Sorocaba",
+      state_uf: "SP",
+      primary_service: "Instalação de Vidros Temperados",
+      phone: "(15) 3211-0000",
+    },
+  });
+  const dnaRes = await POST(dnaReq);
+  assert.strictEqual(dnaRes.status, 200);
+
   // 7. Salvar Baseline Factual
   const baselineReq = createMockRequest({
     action: "save_baseline",

@@ -122,12 +122,14 @@ export const TONE_OF_VOICE_PRESETS = [
  */
 export function getCriticalPendingFields(business: DnaBusinessData = {}): string[] {
   const missing: string[] = [];
-  if (!business.name?.trim()) missing.push("Nome da empresa");
+  const name = business.name?.trim() || (business as Record<string, any>).company_name?.trim();
+  if (!name) missing.push("Nome da empresa");
   if (!business.segment?.trim()) missing.push("Segmento / Categoria principal");
   if (!business.city?.trim() && (!Array.isArray(business.cities) || business.cities.length === 0)) {
     missing.push("Cidade de atuação");
   }
-  if (!business.primary_service?.trim()) missing.push("Serviço principal de tração");
+  const primaryService = business.primary_service?.trim() || (business as Record<string, any>).main_service?.trim();
+  if (!primaryService) missing.push("Serviço principal de tração");
   if (!business.phone?.trim() && !business.whatsapp?.trim()) {
     missing.push("Contato (WhatsApp ou Telefone)");
   }

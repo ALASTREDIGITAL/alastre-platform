@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { POST as productFactoryPOST } from "../app/api/product-factory/route.ts";
 import { POST as commercialPOST } from "../app/api/commercial/route.ts";
-import { POST as onboardingPOST } from "../app/api/client-onboarding/route.ts";
+import { POST as onboardingPOST, memoryStore } from "../app/api/client-onboarding/route.ts";
 
 function createMockRequest(
   url: string,
@@ -305,6 +305,26 @@ test("Hardening 4: Ativação Atômica, Idempotência e Bloqueio de Ativação D
     { "x-alastre-test-role": "admin" }
   ));
 
+  // Confirma DNA com dados vitais mínimos exigidos pelo domínio
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "update_dna",
+      onboardingId,
+      status: "confirmed",
+      facts: {
+        company_name: "Cliente Atômico Ltda",
+        segment: "Saúde e Odontologia",
+        city: "Sorocaba",
+        state_uf: "SP",
+        main_service: "Implantes Dentários",
+        phone: "(15) 99999-9999",
+      },
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
   // Submete ativação
   await onboardingPOST(createMockRequest(
     "http://localhost:5173/api/client-onboarding",
@@ -423,5 +443,415 @@ test("Hardening 6: Validação Estrita do Item de Aprovação (Exige Pending, Me
   assert.strictEqual(directApproveRes.status, 409, "Deve rejeitar com 409 se não houver item de aprovação pendente");
   const directApproveData = await directApproveRes.json();
   assert.match(directApproveData.error, /item de aprovação formal de ativação pendente/i);
+});
+
+test("Hardening 7: Real Gate - Rejeição por DNA Ausente, em Draft ou com Campos Vitais Faltando", async () => {
+  const startRes = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "start_from_handoff",
+      salesHandoffId: `handoff-dna-gate-${Date.now()}`,
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+  const { onboardingId } = await startRes.json();
+
+  // Aprova venda
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "review_sales", onboardingId, decision: "approved" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "commercial_lead" }
+  ));
+
+  // Cria cliente (inicializa DNA em 'draft')
+  const clientRes = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "create_or_link_client_transactional",
+      onboardingId,
+      clientName: "Cliente Teste DNA",
+      unitName: "Sede Centro",
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+  const { clientId } = await clientRes.json();
+
+  // Cumpre requisitos
+  const wsRes = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "get_onboarding_workspace", onboardingId },
+    "admin@alastre.com"
+  ));
+  const wsData = await wsRes.json();
+  for (const r of wsData.requirements) {
+    await onboardingPOST(createMockRequest(
+      "http://localhost:5173/api/client-onboarding",
+      {
+        action: "update_requirement",
+        onboardingId,
+        requirementId: r.id,
+        status: "verified",
+        evidenceText: `Comprovado para ${r.title}`,
+      },
+      "admin@alastre.com",
+      { "x-alastre-test-role": "admin" }
+    ));
+  }
+
+  // Baseline
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "save_baseline",
+      onboardingId,
+      profileCompletenessScore: 80,
+      currentRating: 5.0,
+      currentReviewCount: 15,
+      unansweredReviewsCount: 0,
+      rankingVisibilityNotes: "Top 3",
+      contentAudit: { hasCoverPhoto: true, hasLogo: true },
+      collectionLimitations: [],
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  // Plano
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "generate_plan", onboardingId, targetStartDate: "2026-10-01" },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  // Submete ativação
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "submit_activation", onboardingId, notes: "Submissão com DNA ainda em draft" },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  // 7.1 DNA está em 'draft' -> Deve rejeitar ativação com 409
+  const approveDraft = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "approve_activation", onboardingId, notes: "Tentando ativar com DNA em draft" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  ));
+  assert.strictEqual(approveDraft.status, 409);
+  const draftErr = await approveDraft.json();
+  assert.ok(draftErr.missingCriteria.includes("DNA mínimo confirmado"));
+
+  // 7.2 DNA marcado como 'confirmed', mas faltando campos vitais (ex: sem cidade e sem serviço principal)
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "update_dna",
+      onboardingId,
+      status: "confirmed",
+      facts: {
+        company_name: "Cliente Incompleto",
+        segment: "Saúde",
+        // Faltam: city, primary_service/main_service, phone
+      },
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  const approveIncomplete = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "approve_activation", onboardingId, notes: "Tentando com DNA confirmado porém incompleto" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  ));
+  assert.strictEqual(approveIncomplete.status, 409);
+  const incompleteErr = await approveIncomplete.json();
+  assert.ok(incompleteErr.missingCriteria.includes("DNA mínimo confirmado"));
+
+  // 7.3 DNA com status 'confirmed' e todos os campos vitais preenchidos -> Sucesso 200
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "update_dna",
+      onboardingId,
+      status: "confirmed",
+      facts: {
+        company_name: "Cliente Teste DNA Completo",
+        segment: "Odontologia Especializada",
+        city: "Sorocaba",
+        state_uf: "SP",
+        main_service: "Clínica Geral",
+        phone: "(15) 3333-3333",
+      },
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  const approveComplete = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "approve_activation", onboardingId, notes: "Ativação com DNA completo" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  ));
+  assert.strictEqual(approveComplete.status, 200);
+  const completeData = await approveComplete.json();
+  assert.strictEqual(completeData.status, "active");
+});
+
+test("Hardening 8: Real Gate - Rejeição por Falta de Serviços Válidos ou Serviço de Outro Tenant", async () => {
+  const agencyId = "a1a57e00-0000-4000-8000-000000000001";
+  const startRes = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "start_from_handoff",
+      salesHandoffId: `handoff-services-gate-${Date.now()}`,
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+  const { onboardingId } = await startRes.json();
+
+  // Aprova venda
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "review_sales", onboardingId, decision: "approved" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "commercial_lead" }
+  ));
+
+  // Cria cliente
+  const clientRes = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "create_or_link_client_transactional",
+      onboardingId,
+      clientName: "Cliente Serviços Reais",
+      unitName: "Sede Centro",
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+  const { clientId } = await clientRes.json();
+
+  // Cumpre requisitos
+  const wsRes = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "get_onboarding_workspace", onboardingId },
+    "admin@alastre.com"
+  ));
+  const wsData = await wsRes.json();
+  for (const r of wsData.requirements) {
+    await onboardingPOST(createMockRequest(
+      "http://localhost:5173/api/client-onboarding",
+      {
+        action: "update_requirement",
+        onboardingId,
+        requirementId: r.id,
+        status: "verified",
+        evidenceText: `Comprovado para ${r.title}`,
+      },
+      "admin@alastre.com",
+      { "x-alastre-test-role": "admin" }
+    ));
+  }
+
+  // Baseline
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "save_baseline",
+      onboardingId,
+      profileCompletenessScore: 85,
+      currentRating: 4.9,
+      currentReviewCount: 30,
+      unansweredReviewsCount: 0,
+      rankingVisibilityNotes: "Top 1",
+      contentAudit: { hasCoverPhoto: true, hasLogo: true },
+      collectionLimitations: [],
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  // Plano
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "generate_plan", onboardingId, targetStartDate: "2026-10-01" },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  // Confirma DNA completo
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "update_dna",
+      onboardingId,
+      status: "confirmed",
+      facts: {
+        company_name: "Cliente Serviços Reais",
+        segment: "Clínica Médica",
+        city: "Sorocaba",
+        state_uf: "SP",
+        main_service: "Consultas Médicas",
+        phone: "(15) 3232-3232",
+      },
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  // Submete ativação
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "submit_activation", onboardingId, notes: "Submissão para teste de serviços" },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  // 8.1 Cenário A: Sem serviços cadastrados (array vazio)
+  memoryStore.clientServices.set(clientId, []);
+  const approveNoServices = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "approve_activation", onboardingId, notes: "Tentando ativar sem serviços" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  ));
+  assert.strictEqual(approveNoServices.status, 409);
+  const noServicesErr = await approveNoServices.json();
+  assert.ok(noServicesErr.missingCriteria.includes("Serviços contratados habilitados"));
+
+  // 8.2 Cenário B: Serviço pertencente a outro tenant (agency_id diferente)
+  memoryStore.clientServices.set(clientId, [
+    {
+      id: "svc-other-tenant",
+      agency_id: "99999999-9999-9999-9999-999999999999", // Tenant alheio
+      client_id: clientId,
+      service_key: "local_seo",
+      status: "active",
+    },
+  ]);
+  const approveOtherTenant = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "approve_activation", onboardingId, notes: "Tentando com serviço de outra agência" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  ));
+  assert.strictEqual(approveOtherTenant.status, 409);
+  const otherTenantErr = await approveOtherTenant.json();
+  assert.ok(otherTenantErr.missingCriteria.includes("Serviços contratados habilitados"));
+
+  // 8.3 Cenário C: Serviço inativo ('inactive') não qualifica pré-ativação
+  memoryStore.clientServices.set(clientId, [
+    {
+      id: "svc-inactive",
+      agency_id: agencyId,
+      client_id: clientId,
+      service_key: "local_seo",
+      status: "inactive",
+    },
+  ]);
+  const approveInactive = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "approve_activation", onboardingId, notes: "Tentando com serviço inativo" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  ));
+  assert.strictEqual(approveInactive.status, 409);
+  const inactiveErr = await approveInactive.json();
+  assert.ok(inactiveErr.missingCriteria.includes("Serviços contratados habilitados"));
+
+  // 8.4 Cenário D: Serviço válido ('pending') da mesma agência -> Sucesso 200
+  memoryStore.clientServices.set(clientId, [
+    {
+      id: "svc-valid-pending",
+      agency_id: agencyId,
+      client_id: clientId,
+      service_key: "local_seo",
+      status: "pending",
+    },
+  ]);
+  const approveValid = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "approve_activation", onboardingId, notes: "Ativação com serviço válido" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  ));
+  assert.strictEqual(approveValid.status, 200);
+  const validData = await approveValid.json();
+  assert.strictEqual(validData.status, "active");
+});
+
+test("Hardening 9: Defesa Transacional e Anti-TOCTOU - Bloqueio Sem Mutação de Estado", async () => {
+  const startRes = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "start_from_handoff",
+      salesHandoffId: `handoff-toctou-${Date.now()}`,
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+  const { onboardingId } = await startRes.json();
+
+  // Aprova venda
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "review_sales", onboardingId, decision: "approved" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "commercial_lead" }
+  ));
+
+  // Cria cliente
+  const clientRes = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    {
+      action: "create_or_link_client_transactional",
+      onboardingId,
+      clientName: "Cliente Anti-TOCTOU",
+      unitName: "Sede Centro",
+    },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+  const { clientId } = await clientRes.json();
+
+  // Submete ativação (sem cumprir baseline e plano)
+  await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "submit_activation", onboardingId, notes: "Submissão incompleta para testar rollback/imunidade" },
+    "admin@alastre.com",
+    { "x-alastre-test-role": "admin" }
+  ));
+
+  // Tentativa de ativação falha com 409
+  const failedApprove = await onboardingPOST(createMockRequest(
+    "http://localhost:5173/api/client-onboarding",
+    { action: "approve_activation", onboardingId, notes: "Tentando aprovar" },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  ));
+  assert.strictEqual(failedApprove.status, 409);
+
+  // Verificações estritas anti-mutação:
+  // 1. Onboarding NÃO pode estar active
+  const onb = memoryStore.onboardings.get(onboardingId);
+  assert.strictEqual(onb?.status, "ready_for_activation");
+  assert.strictEqual(onb?.activatedAt, undefined);
+  assert.strictEqual(onb?.activatedByActorId, undefined);
+
+  // 2. Cliente NÃO pode estar active
+  const client = memoryStore.clients.get(clientId);
+  assert.strictEqual(client?.status, "onboarding");
+
+  // 3. Approval item NÃO pode estar approved
+  const appItem = onb?.activationApprovalId ? memoryStore.approvalItems.get(onb.activationApprovalId) : null;
+  assert.strictEqual(appItem?.status, "pending");
 });
 

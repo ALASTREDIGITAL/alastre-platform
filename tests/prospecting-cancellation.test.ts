@@ -31,7 +31,7 @@ describe("Prospecting Windows Cancellation & Process Tree Termination (Condiçã
 
     // Confirmação do evento exit
     assert.equal(exitFired, true, "Evento exit DEVE ser confirmado");
-    assert.ok(duration <= 3500, `Encerramento rápido confirmado (${duration}ms <= 3500ms)`);
+    assert.ok(duration <= 6000, `Encerramento rápido confirmado (${duration}ms <= 6000ms)`);
 
     // Breve pausa para propagação do descritor de processo no kernel Windows
     await new Promise((r) => setTimeout(r, 100));

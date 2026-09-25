@@ -24,7 +24,11 @@ import {
   type OnboardingStage,
 } from "../../../lib/client-onboarding-domain.ts";
 
+import { getCriticalPendingFields } from "../../../lib/dna-domain.ts";
+
 export const dynamic = "force-dynamic";
+
+export const VALID_PRE_ACTIVATION_SERVICE_STATUSES = ["pending", "active"] as const;
 
 function slugify(text: string): string {
   return text
@@ -52,7 +56,7 @@ interface InMemoryOnboardingDb {
   approvalItems: Map<string, { id: string; agency_id: string; client_id: string; source_type: string; source_id: string; status: string }>;
 }
 
-const memoryStore: InMemoryOnboardingDb = {
+export const memoryStore: InMemoryOnboardingDb = {
   onboardings: new Map(),
   units: new Map(),
   requirements: new Map(),
@@ -368,7 +372,19 @@ export async function POST(request: Request) {
       }
 
       // Carregar entidades relacionadas
-      const [unitsRes, reqsRes, baselinesRes, plansRes, decisionsRes, clientRes, handoffRes, propRes, prodRes] = await Promise.all([
+      const [
+        unitsRes,
+        reqsRes,
+        baselinesRes,
+        plansRes,
+        decisionsRes,
+        clientRes,
+        handoffRes,
+        propRes,
+        prodRes,
+        servicesRes,
+        dnaRes,
+      ] = await Promise.all([
         db.from("client_units").select("*").eq("agency_id", agencyId).eq("onboarding_id", onboardingId),
         db.from("client_onboarding_requirements").select("*").eq("agency_id", agencyId).eq("onboarding_id", onboardingId).order("created_at"),
         db.from("client_onboarding_baselines").select("*").eq("agency_id", agencyId).eq("onboarding_id", onboardingId).order("version", { ascending: false }).limit(1).maybeSingle(),
@@ -378,6 +394,12 @@ export async function POST(request: Request) {
         db.from("commercial_sales_handoffs").select("*, commercial_companies(*)").eq("agency_id", agencyId).eq("id", onb.sales_handoff_id).maybeSingle(),
         db.from("commercial_proposals").select("*").eq("agency_id", agencyId).eq("id", onb.proposal_id).maybeSingle(),
         db.from("product_definitions").select("*").eq("agency_id", agencyId).eq("id", onb.product_definition_id).maybeSingle(),
+        onb.client_id
+          ? db.from("client_services").select("id, status, service_key").eq("agency_id", agencyId).eq("client_id", onb.client_id).in("status", ["pending", "active"])
+          : Promise.resolve({ data: [] }),
+        onb.client_id
+          ? db.from("client_dna_profiles").select("status, business_data").eq("agency_id", agencyId).eq("client_id", onb.client_id).maybeSingle()
+          : Promise.resolve({ data: null }),
       ]);
 
       const units: ClientUnit[] = (unitsRes.data || []).map((u: any) => ({
@@ -495,17 +517,25 @@ export async function POST(request: Request) {
         decidedAt: d.decided_at,
       }));
 
-      // Calcular checklist de ativação
+      // Calcular checklist de ativação com serviços e DNA reais
       const pendingReqAccesses = requirements.filter(
         (r) => r.category === "access_credentials" && r.isRequired && r.status !== "verified" && r.status !== "waived"
       ).length;
 
+      const validServices = (servicesRes.data || []).filter((s: any) => ["pending", "active"].includes(s.status));
+      const dnaData = dnaRes.data;
+      const isDnaConfirmed = Boolean(
+        dnaData &&
+        dnaData.status === "confirmed" &&
+        getCriticalPendingFields(dnaData.business_data || {}).length === 0
+      );
+
       const readiness = calculateActivationChecklist({
-        isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status),
+        isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status) && !onb.divergence_reason,
         hasValidClient: Boolean(onb.client_id),
         unitsCount: units.length,
-        enabledServicesCount: onb.client_id ? 1 : 0,
-        isDnaMinimumConfirmed: ["building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status),
+        enabledServicesCount: validServices.length,
+        isDnaMinimumConfirmed: isDnaConfirmed,
         pendingRequiredAccesses: pendingReqAccesses,
         hasBaseline: Boolean(baseline),
         hasImplementationPlan: Boolean(plan),
@@ -616,21 +646,34 @@ export async function POST(request: Request) {
     const plan = memoryStore.plans.get(onboardingId) || null;
     const decisions = memoryStore.decisions.get(onboardingId) || [];
 
+    const client = onb.clientId ? memoryStore.clients.get(onb.clientId) : null;
+    const services = onb.clientId ? (memoryStore.clientServices.get(onb.clientId) || []) : [];
+    const validServices = services.filter((s) => s.agency_id === agencyId && ["pending", "active"].includes(s.status));
+    const dnaProfile = onb.clientId ? memoryStore.dnaProfiles.get(onb.clientId) : null;
+    const isDnaConfirmed = Boolean(
+      dnaProfile &&
+      dnaProfile.agency_id === agencyId &&
+      dnaProfile.status === "confirmed" &&
+      getCriticalPendingFields(dnaProfile.business_data || {}).length === 0
+    );
+
+    const pendingReqAccesses = requirements.filter(
+      (r) => r.category === "access_credentials" && r.isRequired && r.status !== "verified" && r.status !== "waived"
+    ).length;
+
     const readiness = calculateActivationChecklist({
-      isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status),
+      isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status) && !onb.divergenceReason,
       hasValidClient: Boolean(onb.clientId),
       unitsCount: units.length,
-      enabledServicesCount: onb.clientId ? 1 : 0,
-      isDnaMinimumConfirmed: ["building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status),
-      pendingRequiredAccesses: 0,
+      enabledServicesCount: validServices.length,
+      isDnaMinimumConfirmed: isDnaConfirmed,
+      pendingRequiredAccesses: pendingReqAccesses,
       hasBaseline: Boolean(baseline),
       hasImplementationPlan: Boolean(plan),
       hasAssignedResponsible: true,
       hasOpenBlockers: onb.status === "blocked",
       isHumanApprovalRecorded: onb.status === "active",
     });
-
-    const client = onb.clientId ? memoryStore.clients.get(onb.clientId) : null;
 
     const workspace: OnboardingWorkspaceData = {
       onboarding: onb,
@@ -1019,6 +1062,28 @@ export async function POST(request: Request) {
     };
     memoryStore.units.set(onboardingId, [newUnit]);
 
+    memoryStore.clientServices.set(cId, [
+      {
+        id: `svc-${Date.now()}`,
+        agency_id: agencyId,
+        client_id: cId,
+        service_key: "local_seo",
+        status: "pending",
+      },
+    ]);
+
+    memoryStore.dnaProfiles.set(cId, {
+      client_id: cId,
+      agency_id: agencyId,
+      status: "draft",
+      business_data: {
+        company_name: targetName,
+        segment: "",
+        city: unitCity || "Sorocaba",
+        state_uf: unitStateUf || "SP",
+      },
+    });
+
     onb.clientId = cId;
     onb.status = "awaiting_client_information";
     onb.currentStage = "awaiting_client_information";
@@ -1212,6 +1277,23 @@ export async function POST(request: Request) {
 
       return Response.json({ success: true, status });
     }
+
+    // Memória local
+    const onb = memoryStore.onboardings.get(onboardingId);
+    if (!onb || onb.agencyId !== agencyId) {
+      return Response.json({ error: "Onboarding não encontrado na agência." }, { status: 404 });
+    }
+    if (!onb.clientId) {
+      return Response.json({ error: "Cliente não vinculado ao onboarding." }, { status: 400 });
+    }
+
+    const existingDna = memoryStore.dnaProfiles.get(onb.clientId);
+    memoryStore.dnaProfiles.set(onb.clientId, {
+      client_id: onb.clientId,
+      agency_id: agencyId,
+      status: status || existingDna?.status || "draft",
+      business_data: facts || existingDna?.business_data || {},
+    });
 
     return Response.json({ success: true, status });
   }
@@ -1540,11 +1622,17 @@ export async function POST(request: Request) {
         return Response.json({ error: "Onboarding não encontrado." }, { status: 404 });
       }
 
-      const [unitsRes, reqsRes, baselinesRes, plansRes] = await Promise.all([
+      const [unitsRes, reqsRes, baselinesRes, plansRes, servicesRes, dnaRes] = await Promise.all([
         db.from("client_units").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId),
         db.from("client_onboarding_requirements").select("*").eq("agency_id", agencyId).eq("onboarding_id", onboardingId),
         db.from("client_onboarding_baselines").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId).limit(1),
         db.from("client_onboarding_plans").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId).limit(1),
+        onb.client_id
+          ? db.from("client_services").select("id, status").eq("agency_id", agencyId).eq("client_id", onb.client_id).in("status", ["pending", "active"])
+          : Promise.resolve({ data: [] }),
+        onb.client_id
+          ? db.from("client_dna_profiles").select("status, business_data").eq("agency_id", agencyId).eq("client_id", onb.client_id).maybeSingle()
+          : Promise.resolve({ data: null }),
       ]);
 
       const reqs = reqsRes.data || [];
@@ -1552,12 +1640,20 @@ export async function POST(request: Request) {
         (r: any) => r.category === "access_credentials" && r.is_required && r.status !== "verified" && r.status !== "waived"
       ).length;
 
+      const validServices = (servicesRes.data || []).filter((s: any) => ["pending", "active"].includes(s.status));
+      const dnaData = dnaRes.data;
+      const isDnaConfirmed = Boolean(
+        dnaData &&
+        dnaData.status === "confirmed" &&
+        getCriticalPendingFields(dnaData.business_data || {}).length === 0
+      );
+
       const readiness = calculateActivationChecklist({
-        isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status),
+        isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status) && !onb.divergence_reason,
         hasValidClient: Boolean(onb.client_id),
         unitsCount: (unitsRes.data || []).length,
-        enabledServicesCount: onb.client_id ? 1 : 0,
-        isDnaMinimumConfirmed: ["building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status),
+        enabledServicesCount: validServices.length,
+        isDnaMinimumConfirmed: isDnaConfirmed,
         pendingRequiredAccesses: pendingAccesses,
         hasBaseline: (baselinesRes.data || []).length > 0,
         hasImplementationPlan: (plansRes.data || []).length > 0,
@@ -1570,18 +1666,33 @@ export async function POST(request: Request) {
     }
 
     const onb = memoryStore.onboardings.get(onboardingId);
-    if (!onb) return Response.json({ error: "Onboarding não encontrado." }, { status: 404 });
+    if (!onb || onb.agencyId !== agencyId) return Response.json({ error: "Onboarding não encontrado." }, { status: 404 });
+
+    const services = onb.clientId ? (memoryStore.clientServices.get(onb.clientId) || []) : [];
+    const validServices = services.filter((s) => s.agency_id === agencyId && ["pending", "active"].includes(s.status));
+    const dnaProfile = onb.clientId ? memoryStore.dnaProfiles.get(onb.clientId) : null;
+    const isDnaConfirmed = Boolean(
+      dnaProfile &&
+      dnaProfile.agency_id === agencyId &&
+      dnaProfile.status === "confirmed" &&
+      getCriticalPendingFields(dnaProfile.business_data || {}).length === 0
+    );
+
+    const reqs = memoryStore.requirements.get(onboardingId) || [];
+    const pendingAccesses = reqs.filter(
+      (r) => r.category === "access_credentials" && r.isRequired && r.status !== "verified" && r.status !== "waived"
+    ).length;
 
     const readiness = calculateActivationChecklist({
-      isSalesVerified: true,
+      isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation", "active"].includes(onb.status) && !onb.divergenceReason,
       hasValidClient: Boolean(onb.clientId),
       unitsCount: (memoryStore.units.get(onboardingId) || []).length,
-      enabledServicesCount: onb.clientId ? 1 : 0,
-      isDnaMinimumConfirmed: true,
-      pendingRequiredAccesses: 0,
+      enabledServicesCount: validServices.length,
+      isDnaMinimumConfirmed: isDnaConfirmed,
+      pendingRequiredAccesses: pendingAccesses,
       hasBaseline: (memoryStore.baselines.get(onboardingId) || []).length > 0,
       hasImplementationPlan: Boolean(memoryStore.plans.get(onboardingId)),
-      hasAssignedResponsible: true,
+      hasAssignedResponsible: Boolean(onb.assignedOperatorActorId || onb.createdByActorId),
       hasOpenBlockers: onb.status === "blocked",
       isHumanApprovalRecorded: onb.status === "active",
     });
@@ -1758,11 +1869,13 @@ export async function POST(request: Request) {
       }
 
       // 4. Recálculo dos 11 critérios de prontidão a partir do estado fresco do banco (Requirement 3)
-      const [unitsRes, reqsRes, baselinesRes, plansRes] = await Promise.all([
+      const [unitsRes, reqsRes, baselinesRes, plansRes, servicesRes, dnaRes] = await Promise.all([
         db.from("client_units").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId),
         db.from("client_onboarding_requirements").select("*").eq("agency_id", agencyId).eq("onboarding_id", onboardingId),
         db.from("client_onboarding_baselines").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId).limit(1),
         db.from("client_onboarding_plans").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId).limit(1),
+        db.from("client_services").select("id, status").eq("agency_id", agencyId).eq("client_id", onb.client_id).in("status", ["pending", "active"]),
+        db.from("client_dna_profiles").select("status, business_data").eq("agency_id", agencyId).eq("client_id", onb.client_id).maybeSingle(),
       ]);
 
       const unitsList = unitsRes.data || [];
@@ -1778,12 +1891,20 @@ export async function POST(request: Request) {
         (r: any) => r.is_required && r.status !== "verified" && r.status !== "waived"
       );
 
+      const validServices = (servicesRes.data || []).filter((s: any) => ["pending", "active"].includes(s.status));
+      const dnaData = dnaRes.data;
+      const isDnaConfirmed = Boolean(
+        dnaData &&
+        dnaData.status === "confirmed" &&
+        getCriticalPendingFields(dnaData.business_data || {}).length === 0
+      );
+
       const readiness = calculateActivationChecklist({
         isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation"].includes(onb.status) && !onb.divergence_reason,
         hasValidClient: Boolean(onb.client_id),
         unitsCount: unitsList.length,
-        enabledServicesCount: onb.client_id ? 1 : 0,
-        isDnaMinimumConfirmed: ["building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation"].includes(onb.status),
+        enabledServicesCount: validServices.length,
+        isDnaMinimumConfirmed: isDnaConfirmed,
         pendingRequiredAccesses: pendingAccesses,
         hasBaseline: baselinesList.length > 0,
         hasImplementationPlan: plansList.length > 0,
@@ -1892,12 +2013,23 @@ export async function POST(request: Request) {
       (r) => r.isRequired && r.status !== "verified" && r.status !== "waived"
     );
 
+    const validServices = (memoryStore.clientServices.get(onb.clientId) || []).filter(
+      (s) => s.agency_id === agencyId && ["pending", "active"].includes(s.status)
+    );
+    const dnaProfile = memoryStore.dnaProfiles.get(onb.clientId);
+    const isDnaConfirmed = Boolean(
+      dnaProfile &&
+      dnaProfile.agency_id === agencyId &&
+      dnaProfile.status === "confirmed" &&
+      getCriticalPendingFields(dnaProfile.business_data || {}).length === 0
+    );
+
     const readiness = calculateActivationChecklist({
       isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation"].includes(onb.status) && !onb.divergenceReason,
       hasValidClient: Boolean(onb.clientId),
       unitsCount: unitsList.length,
-      enabledServicesCount: onb.clientId ? 1 : 0,
-      isDnaMinimumConfirmed: ["building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation"].includes(onb.status),
+      enabledServicesCount: validServices.length,
+      isDnaMinimumConfirmed: isDnaConfirmed,
       pendingRequiredAccesses: pendingAccesses,
       hasBaseline: baselinesList.length > 0,
       hasImplementationPlan: hasPlan,
