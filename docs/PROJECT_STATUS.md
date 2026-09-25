@@ -180,4 +180,34 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - 4 testes de segurança da plataforma (`tests/platform-security.test.mjs`).
   - Total: 43 testes automatizados passando (100% sucesso).
 
+## Marco de Entrega — Módulo 08: Capacidade e Financeiro (2026-09-25)
+
+- **Escopo Funcional Entregue**:
+  - Central de Capacidade e Financeiro estruturada em 8 abas funcionais: Visão Econômica, Premissas e Custos, Tempo e Retrabalho, Capacidade e Gargalos, Cenários de Crescimento, Margem e Viabilidade, Precificação e Descontos, Histórico e Auditoria.
+  - Alternância de visualização entre Modo Simples (padrão) e Modo Avançado (técnico).
+  - Premissas econômicas versionadas com classificação da origem do dado (`real_observed`, `reported_value`, `estimate`, `hypothesis`, `unavailable`). Premissa sem evidência reclassificada obrigatoriamente como hipótese.
+  - Consolidação de tempo padrão (Módulo 01 / Módulo 04) e realizado (`work_item_time_logs` do Módulo 04) com rastreamento de custos por mão de obra, software, IA, atendimento, venda, implantação e retrabalho (Módulo 06).
+  - Cálculo de capacidade por função e cenários para 10, 25, 50 e 100 clientes, identificando a função que representa o gargalo dominante e o ponto de contratação antes do risco de queda de qualidade.
+  - Análise de margem com segregação mandatória de valor contratado, faturado e recebido, além de custo estimado vs realizado e margem estimada vs realizada. Proibição estrita de misturar valor contratado com recebido.
+  - Cálculo de CAC, Payback e LTV com exibição explícita de "Dados Insuficientes (N/D)" e lista de campos ausentes quando não houver cobertura total. Proibição de inventar métricas financeiras sintéticas.
+  - Precificação e descontos protegidos: trava que impede aprovação de preço sem custo operacional estimado, trava que exige contrapartida documentada para descontos, e esteira de aprovação humana (`approval_items` com `source_type = 'capacity_financial_pricing'`).
+  - Imutabilidade da trilha de auditoria e registro de todos os eventos em `audit_events`.
+  - Exibição mandatória de aviso de isenção econômica (`PROJECTION_DISCLAIMER`) e selos de origem em todas as telas.
+
+- **Banco de Dados, API e Segurança**:
+  - Migration forward-only: `supabase/migrations/20260925100000_capacity_and_finance_foundation.sql`.
+  - Tabelas: `financial_economic_assumptions`, `financial_cost_records`, `financial_capacity_simulations`, `financial_margin_analyses`, `financial_pricing_decisions`.
+  - Constraints únicas `(agency_id, id)` e Foreign Keys compostas `(agency_id, client_id)`, `(agency_id, product_definition_id)`, `(agency_id, proposal_id)`.
+  - RLS ativado e permissões revogadas para `public`, `anon`, `authenticated` (acesso restrito ao `service_role`).
+  - Endpoint `POST /api/capacity-and-finance` e `GET /api/capacity-and-finance` com validação Zod, `resolveAuthenticatedActor` e auditoria.
+
+- **Suíte de Validação**:
+  - 10 testes automatizados focados no Módulo 08 (`tests/capacity-and-finance-*.test.ts`).
+  - 16 testes de migração e segurança (`tests/migration-security.test.mjs`).
+  - 4 testes de segurança da plataforma (`tests/platform-security.test.mjs`).
+  - Total da suíte executada: 46 testes automatizados passando (100% sucesso).
+  - TypeScript (`tsc --noEmit`): 0 erros.
+  - ESLint: 0 erros nos arquivos alterados.
+
+
 
