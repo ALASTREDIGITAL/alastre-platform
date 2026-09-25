@@ -1,6 +1,6 @@
-import { ConnectionHubRepository } from "../../../lib/connection-hub/repository.ts";
 import { createSupabaseAdmin } from "../../../lib/connection-hub/supabase-admin.ts";
-import { extractAuthenticatedEmail } from "../../../lib/server-auth.ts";
+import { extractAuthenticatedEmail, resolveAuthenticatedActor } from "../../../lib/server-auth.ts";
+import { canWriteCommercial, canReviewSales, canReviewOperations } from "../../../lib/permissions.ts";
 import {
   commercialCrmRequestSchema,
   type OpportunityWorkspaceData,
@@ -12,11 +12,8 @@ import {
   canTransitionOpportunity,
   calculatePrioritization,
   evaluateQualification,
-  validateDiagnosisCompleteness,
   validateProposalDiscount,
-  isProposalEditable,
   validateLossReason,
-  validateHandoffChecklist,
   calculateCommercialMetrics,
   generateForecast,
   validateOpportunityIntegrity,
@@ -31,8 +28,7 @@ import { buildIdentityKey } from "../../../lib/prospecting/prospecting-identity.
 
 export const dynamic = "force-dynamic";
 
-const roleCanWrite = (role: string) =>
-  ["owner", "admin", "operator"].includes(role);
+const roleCanWrite = (role: string) => canWriteCommercial(role);
 
 // Memória local em camadas para testes automatizados e fallback de desenvolvimento
 interface InMemoryCommercialDb {
@@ -76,20 +72,52 @@ export async function POST(request: Request) {
 
   const input = parsed.data;
   const db = createSupabaseAdmin();
+  const isProduction = process.env.NODE_ENV === "production";
 
-  // Contexto de ator e tenant (agência)
-  let actor = {
-    actorId: "actor_local",
-    agencyId: "00000000-0000-0000-0000-000000000001",
-    role: "operator",
-  };
+  if (isProduction && !db) {
+    return Response.json(
+      { error: "Serviço temporariamente indisponível. Configuração de banco de dados ausente." },
+      { status: 503 }
+    );
+  }
+
+  let actor: { actorId: string; agencyId: string; role: string };
 
   if (db) {
-    try {
-      const repository = new ConnectionHubRepository(db);
-      actor = await repository.resolveActor(email);
-    } catch {
-      // Fallback seguro de desenvolvimento
+    const resolved = await resolveAuthenticatedActor(request, db);
+    if (!resolved || !resolved.actor) {
+      return Response.json(
+        { error: "Acesso não autorizado para esta agência." },
+        { status: 403 }
+      );
+    }
+    actor = resolved.actor;
+  } else {
+    if (isProduction) {
+      return Response.json({ error: "Serviço temporariamente indisponível." }, { status: 503 });
+    }
+    const testAgencyId =
+      request.headers.get("x-alastre-agency-id") ||
+      request.headers.get("x-alastre-test-agency-id") ||
+      "a1a57e00-0000-4000-8000-000000000001";
+    const testActorId = request.headers.get("x-alastre-test-actor-id") || "actor_dev";
+    const testRole = request.headers.get("x-alastre-test-role") || "operator";
+    actor = {
+      actorId: testActorId,
+      agencyId: testAgencyId,
+      role: testRole,
+    };
+  }
+
+  // Em ambiente de teste/desenvolvimento (não produção), permite chavear a agência ou papel para testes multi-tenant
+  if (!isProduction) {
+    const testAgencyId = request.headers.get("x-alastre-agency-id");
+    if (testAgencyId) {
+      actor.agencyId = testAgencyId;
+    }
+    const testRole = request.headers.get("x-alastre-test-role");
+    if (testRole) {
+      actor.role = testRole;
     }
   }
 
@@ -994,8 +1022,8 @@ export async function POST(request: Request) {
 
   // 17. Submeter Handoff para Revisão Operacional
   if (input.action === "submit_handoff_review") {
-    if (!roleCanWrite(actor.role)) {
-      return Response.json({ error: "Permissão insuficiente." }, { status: 403 });
+    if (!canReviewSales(actor.role)) {
+      return Response.json({ error: "Permissão insuficiente para submeter handoff." }, { status: 403 });
     }
 
     const now = new Date().toISOString();
@@ -1006,16 +1034,19 @@ export async function POST(request: Request) {
         .eq("agency_id", agencyId)
         .eq("id", input.handoff_id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         return Response.json({ error: "Erro ao submeter handoff para operações." }, { status: 500 });
+      }
+      if (!handoff) {
+        return Response.json({ error: "Handoff não encontrado ou não pertencente à agência." }, { status: 404 });
       }
       return Response.json({ handoff });
     }
 
     const hand = memoryStore.handoffs.get(input.opportunity_id);
-    if (hand) {
+    if (hand && hand.agency_id === agencyId) {
       hand.status = "operations_review";
       hand.submitted_at = now;
       hand.updated_at = now;
@@ -1027,8 +1058,11 @@ export async function POST(request: Request) {
 
   // 18. Avaliar Handoff (Operações)
   if (input.action === "review_handoff") {
-    if (!roleCanWrite(actor.role)) {
-      return Response.json({ error: "Apenas administradores ou operadores podem aprovar o handoff." }, { status: 403 });
+    if (!canReviewOperations(actor.role)) {
+      return Response.json(
+        { error: "Apenas liderança de operações (owner, admin, operations_lead) pode avaliar o handoff." },
+        { status: 403 }
+      );
     }
 
     const now = new Date().toISOString();
@@ -1045,10 +1079,13 @@ export async function POST(request: Request) {
         .eq("agency_id", agencyId)
         .eq("id", input.handoff_id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) {
         return Response.json({ error: "Erro ao registrar avaliação de operações." }, { status: 500 });
+      }
+      if (!handoff) {
+        return Response.json({ error: "Handoff não encontrado ou não pertencente à agência." }, { status: 404 });
       }
 
       // REGRA MANDATÓRIA: Mesmo aprovado para onboarding, NÃO cria cliente automaticamente aqui.

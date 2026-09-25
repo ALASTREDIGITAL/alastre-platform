@@ -4,10 +4,17 @@ import { POST } from "../app/api/client-onboarding/route.ts";
 
 Object.assign(process.env, { NODE_ENV: "development" });
 
-function createMockRequest(body: unknown, authenticatedEmail: string | null = "operator@alastre.com"): Request {
+function createMockRequest(
+  body: unknown,
+  authenticatedEmail: string | null = "operator@alastre.com",
+  extraHeaders: Record<string, string> = {}
+): Request {
   const headers = new Headers();
   if (authenticatedEmail) {
     headers.set("oai-authenticated-user-email", authenticatedEmail);
+  }
+  for (const [k, v] of Object.entries(extraHeaders)) {
+    headers.set(k, v);
   }
   return new Request("http://localhost:5173/api/client-onboarding", {
     method: "POST",
@@ -204,12 +211,46 @@ test("03. API: Ciclo de vida operacional completo do Onboarding", async () => {
   const submitRes = await POST(submitReq);
   assert.strictEqual(submitRes.status, 200);
 
+  // 10.1 Prova do Activation Gate Real: com requisitos pendentes, aprovação deve falhar com 409
+  const prematureApproveReq = createMockRequest(
+    {
+      action: "approve_activation",
+      onboardingId,
+      notes: "Tentativa de ativação prematura.",
+    },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  );
+  const prematureApproveRes = await POST(prematureApproveReq);
+  assert.strictEqual(prematureApproveRes.status, 409);
+  const prematureData = await prematureApproveRes.json();
+  assert.ok(prematureData.missingCriteria.length > 0);
+
+  // 10.2 Cumprir ou dispensar justificadamente todos os requisitos obrigatórios restantes
+  for (const r of wsData.requirements) {
+    if (r.id !== req1.id && r.id !== req2.id) {
+      const fulfillReq = createMockRequest({
+        action: "update_requirement",
+        onboardingId,
+        requirementId: r.id,
+        status: "verified",
+        evidenceText: `Comprovante validado para ${r.title}`,
+      });
+      const fulfillRes = await POST(fulfillReq);
+      assert.strictEqual(fulfillRes.status, 200);
+    }
+  }
+
   // 11. Aprovar Ativação Operacional
-  const approveReq = createMockRequest({
-    action: "approve_activation",
-    onboardingId,
-    notes: "Ativação autorizada pela liderança.",
-  });
+  const approveReq = createMockRequest(
+    {
+      action: "approve_activation",
+      onboardingId,
+      notes: "Ativação autorizada pela liderança.",
+    },
+    "lead@alastre.com",
+    { "x-alastre-test-role": "operations_lead" }
+  );
   const approveRes = await POST(approveReq);
   assert.strictEqual(approveRes.status, 200);
   const approveData = await approveRes.json();

@@ -1,6 +1,6 @@
-import { ConnectionHubRepository } from "../../../lib/connection-hub/repository.ts";
 import { createSupabaseAdmin } from "../../../lib/connection-hub/supabase-admin.ts";
-import { extractAuthenticatedEmail } from "../../../lib/server-auth.ts";
+import { extractAuthenticatedEmail, resolveAuthenticatedActor } from "../../../lib/server-auth.ts";
+import { canWriteProductFactory } from "../../../lib/permissions.ts";
 import {
   productFactoryRequestSchema,
   type ProductWorkspaceData,
@@ -19,8 +19,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-const roleCanWrite = (role: string) =>
-  ["owner", "admin", "operator"].includes(role);
+const roleCanWrite = (role: string) => canWriteProductFactory(role);
 
 // Memória local para testes e desenvolvimento offline
 const inMemoryStore = new Map<string, ProductWorkspaceData>();
@@ -68,28 +67,53 @@ export async function POST(request: Request) {
 
   const input = parsed.data;
   const db = createSupabaseAdmin();
+  const isProduction = process.env.NODE_ENV === "production";
 
-  // Obter contexto do ator e agência
-  let actor = {
-    actorId: "actor_local",
-    agencyId: "00000000-0000-0000-0000-000000000001",
-    role: "operator",
-  };
-
-  if (db) {
-    try {
-      const repository = new ConnectionHubRepository(db);
-      actor = await repository.resolveActor(email);
-    } catch {
-      // Falha segura ou fallback para desenvolvimento
-    }
+  if (isProduction && !db) {
+    return Response.json(
+      { error: "Serviço temporariamente indisponível. Configuração de banco de dados ausente." },
+      { status: 503 },
+    );
   }
 
-  // Em ambiente de teste/desenvolvimento, permite chavear a agência para testes automatizados multi-tenant
-  if (process.env.NODE_ENV !== "production") {
+  let actor: { actorId: string; agencyId: string; role: string };
+
+  if (db) {
+    const resolved = await resolveAuthenticatedActor(request, db);
+    if (!resolved || !resolved.actor) {
+      return Response.json(
+        { error: "Acesso não autorizado para esta agência." },
+        { status: 403 },
+      );
+    }
+    actor = resolved.actor;
+  } else {
+    if (isProduction) {
+      return Response.json({ error: "Serviço temporariamente indisponível." }, { status: 503 });
+    }
+    // Suporte restrito a desenvolvimento local ou testes automatizados sem banco configurado
+    const testAgencyId =
+      request.headers.get("x-alastre-agency-id") ||
+      request.headers.get("x-alastre-test-agency-id") ||
+      "a1a57e00-0000-4000-8000-000000000001";
+    const testActorId = request.headers.get("x-alastre-test-actor-id") || "actor_dev";
+    const testRole = request.headers.get("x-alastre-test-role") || "operator";
+    actor = {
+      actorId: testActorId,
+      agencyId: testAgencyId,
+      role: testRole,
+    };
+  }
+
+  // Em ambiente de teste/desenvolvimento (não produção), permite chavear a agência ou papel para testes multi-tenant
+  if (!isProduction) {
     const testAgencyId = request.headers.get("x-alastre-agency-id");
     if (testAgencyId) {
       actor.agencyId = testAgencyId;
+    }
+    const testRole = request.headers.get("x-alastre-test-role");
+    if (testRole) {
+      actor.role = testRole;
     }
   }
 
@@ -951,16 +975,27 @@ export async function POST(request: Request) {
     }
 
     if (db) {
-      await db
+      const { data: archivedRows, error: archError } = await db
         .from("product_definitions")
         .update({
           status: "archived",
           updated_at: new Date().toISOString(),
         })
         .eq("agency_id", actor.agencyId)
-        .eq("id", input.product_id);
+        .eq("id", input.product_id)
+        .select();
 
-      await db.from("audit_events").insert({
+      if (archError) {
+        return Response.json({ error: "Erro ao arquivar produto." }, { status: 500 });
+      }
+      if (!archivedRows || archivedRows.length === 0) {
+        return Response.json(
+          { error: "Produto não encontrado ou não pertencente à agência autenticada." },
+          { status: 404 }
+        );
+      }
+
+      const { error: auditError } = await db.from("audit_events").insert({
         agency_id: actor.agencyId,
         actor_user_id: null,
         action: "product_archive",
@@ -968,6 +1003,10 @@ export async function POST(request: Request) {
         target_id: input.product_id,
         payload: {},
       });
+
+      if (auditError) {
+        return Response.json({ error: "Falha ao registrar auditoria da operação." }, { status: 500 });
+      }
     }
 
     const currentWs = inMemoryStore.get(input.product_id);

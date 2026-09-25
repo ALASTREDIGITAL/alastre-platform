@@ -223,3 +223,38 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - `eslint`: 0 erros.
   - `npm run build`: 100% aprovado com rota `/api/client-onboarding` compilada.
 
+## Marco de Hardening Crítico — Autenticação, Tenant, RBAC e Ativação Atômica (2026-09-24)
+
+- **Eliminação de Fallbacks Inseguros (M01, M02, M03)**:
+  - Removido qualquer uso de `actor_local`, tenant dummy `00000000-0000-0000-0000-000000000001` ou role `operator` como fallback.
+  - Todas as rotas de API (`/api/product-factory`, `/api/commercial`, `/api/client-onboarding`) usam estritamente `resolveAuthenticatedActor`:
+    - Banco configurado + falha na resolução do ator: **403 Forbidden**.
+    - Banco indisponível ou configuração ausente em produção: **503 Service Unavailable**.
+    - O armazenamento em memória é terminantemente proibido em produção (restrito a desenvolvimento e testes locais offline).
+    - O campo `agency_id` recebido em payload é desconsiderado; a agência autenticada do ator é sempre soberana.
+- **RBAC Centralizado & Segregação de Funções (SoD)**:
+  - Módulos `lib/permissions.ts` e `lib/rbac.ts` centralizam as políticas por papel (`owner`, `admin`, `operations_lead`, `commercial_lead`, `operator`, `sales_rep`, `viewer`).
+  - Ativação (`approve_activation`), cancelamento (`cancel`) e desbloqueio (`unblock`) restritos a `owner`, `admin` e `operations_lead`.
+  - Operadores (`operator`) e visualizadores (`viewer`) são terminantemente proibidos de aprovar ativações (SoD).
+- **Activation Gate Real**:
+  - `approve_activation` recalcula os 11 critérios de prontidão diretamente no servidor a partir do estado fresco do banco.
+  - Valida o item de aprovação pendente (`approval_items`) exigindo match em `agency_id`, `source_type = 'client_onboarding_activation'`, `source_id = onboardingId` e `status = 'pending'`.
+  - Se faltar qualquer critério, retorna **409 Conflict** com a lista de pendências (`missingCriteria`), sem tocar ou mutar nenhum registro.
+- **Ativação Atômica no PostgreSQL**:
+  - Migration `20260924130000_client_onboarding_atomic_activation.sql` aplicada no Supabase Homologação (`fifbtwbndutbvwnbzgtz`).
+  - Função transacional `public.onboarding_activate_client` com `SECURITY DEFINER`, `search_path = public, pg_temp`, execução revogada de `public`/`anon`/`authenticated` e concedida somente a `service_role`.
+  - Atualiza atomicamente `client_onboardings`, `clients`, `client_services` e `approval_items` com lock de linha (`FOR UPDATE`), prevenindo dupla ativação e retornando **409 Conflict** em caso de corrida ou ativação repetida.
+- **Prevenção de Falsos Sucessos**:
+  - Todas as mutações em M01, M02 e M03 validam contagem de linhas afetadas (`data.length > 0`), retornando **404 Not Found** se 0 linhas foram afetadas, e verificam a inserção em `audit_events` (retornando **500 Internal Server Error** em falhas de auditoria).
+- **Suíte de Hardening e Validação Completa**:
+  - 14 suítes de testes automatizados com 78 testes aprovados (100% de sucesso):
+    - `tests/product-factory-*.test.ts`: 15 testes aprovados
+    - `tests/commercial-crm-*.test.ts`: 32 testes aprovados
+    - `tests/client-onboarding-*.test.ts`: 25 testes aprovados
+    - `tests/hardening-auth-tenant-activation.test.ts`: 6 testes de hardening aprovados
+  - `tsc --noEmit`: 0 erros.
+  - `eslint`: 0 erros.
+  - `npm run build`: 100% aprovado com todas as rotas e SSR compilados.
+  - `supabase db advisors --linked`: 0 erros e 0 alertas.
+
+

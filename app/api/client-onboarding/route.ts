@@ -1,6 +1,11 @@
-import { ConnectionHubRepository } from "../../../lib/connection-hub/repository.ts";
 import { createSupabaseAdmin } from "../../../lib/connection-hub/supabase-admin.ts";
-import { extractAuthenticatedEmail } from "../../../lib/server-auth.ts";
+import { extractAuthenticatedEmail, resolveAuthenticatedActor } from "../../../lib/server-auth.ts";
+import {
+  canWriteOnboarding,
+  canCancelOnboarding,
+  canUnblockOnboarding,
+  validateActivationApprovalPermission,
+} from "../../../lib/permissions.ts";
 import {
   clientOnboardingRequestSchema,
   type OnboardingWorkspaceData,
@@ -44,6 +49,7 @@ interface InMemoryOnboardingDb {
   clients: Map<string, { id: string; agency_id: string; name: string; slug: string; status: string }>;
   clientServices: Map<string, Array<{ id: string; agency_id: string; client_id: string; service_key: string; status: string }>>;
   dnaProfiles: Map<string, { client_id: string; agency_id: string; status: string; business_data: Record<string, unknown> }>;
+  approvalItems: Map<string, { id: string; agency_id: string; client_id: string; source_type: string; source_id: string; status: string }>;
 }
 
 const memoryStore: InMemoryOnboardingDb = {
@@ -56,6 +62,7 @@ const memoryStore: InMemoryOnboardingDb = {
   clients: new Map(),
   clientServices: new Map(),
   dnaProfiles: new Map(),
+  approvalItems: new Map(),
 };
 
 export async function POST(request: Request) {
@@ -75,20 +82,52 @@ export async function POST(request: Request) {
 
   const input = parsed.data;
   const db = createSupabaseAdmin();
+  const isProduction = process.env.NODE_ENV === "production";
 
-  // Contexto de ator e tenant (agência)
-  let actor = {
-    actorId: "actor_local",
-    agencyId: "00000000-0000-0000-0000-000000000001",
-    role: "operator",
-  };
+  if (isProduction && !db) {
+    return Response.json(
+      { error: "Serviço temporariamente indisponível. Configuração de banco de dados ausente." },
+      { status: 503 }
+    );
+  }
+
+  let actor: { actorId: string; agencyId: string; role: string };
 
   if (db) {
-    try {
-      const repository = new ConnectionHubRepository(db);
-      actor = await repository.resolveActor(email);
-    } catch {
-      // Fallback seguro de desenvolvimento
+    const resolved = await resolveAuthenticatedActor(request, db);
+    if (!resolved || !resolved.actor) {
+      return Response.json(
+        { error: "Acesso não autorizado para esta agência." },
+        { status: 403 }
+      );
+    }
+    actor = resolved.actor;
+  } else {
+    if (isProduction) {
+      return Response.json({ error: "Serviço temporariamente indisponível." }, { status: 503 });
+    }
+    const testAgencyId =
+      request.headers.get("x-alastre-agency-id") ||
+      request.headers.get("x-alastre-test-agency-id") ||
+      "a1a57e00-0000-4000-8000-000000000001";
+    const testActorId = request.headers.get("x-alastre-test-actor-id") || "actor_dev";
+    const testRole = request.headers.get("x-alastre-test-role") || "operator";
+    actor = {
+      actorId: testActorId,
+      agencyId: testAgencyId,
+      role: testRole,
+    };
+  }
+
+  // Em ambiente de teste/desenvolvimento (não produção), permite chavear a agência ou papel para testes multi-tenant
+  if (!isProduction) {
+    const testAgencyId = request.headers.get("x-alastre-agency-id");
+    if (testAgencyId) {
+      actor.agencyId = testAgencyId;
+    }
+    const testRole = request.headers.get("x-alastre-test-role");
+    if (testRole) {
+      actor.role = testRole;
     }
   }
 
@@ -1552,17 +1591,25 @@ export async function POST(request: Request) {
 
   // 14. Submeter para Ativação (Approval Gate)
   if (input.action === "submit_activation") {
+    if (!canWriteOnboarding(actor.role)) {
+      return Response.json({ error: "Permissão insuficiente para submeter ativação." }, { status: 403 });
+    }
+
     const { onboardingId, notes } = input;
 
     if (db) {
-      const { data: onb } = await db
+      const { data: onb, error: onbLookupErr } = await db
         .from("client_onboardings")
         .select("*")
         .eq("agency_id", agencyId)
         .eq("id", onboardingId)
         .maybeSingle();
 
-      if (!onb || !onb.client_id) {
+      if (onbLookupErr || !onb) {
+        return Response.json({ error: "Onboarding não encontrado ou não pertencente à agência." }, { status: 404 });
+      }
+
+      if (!onb.client_id) {
         return Response.json({ error: "Onboarding deve possuir cliente válido antes de submeter ativação." }, { status: 400 });
       }
 
@@ -1590,7 +1637,7 @@ export async function POST(request: Request) {
         return Response.json({ error: `Falha ao registrar aprovação: ${appErr?.message}` }, { status: 500 });
       }
 
-      await db
+      const { data: updatedOnb, error: updateErr } = await db
         .from("client_onboardings")
         .update({
           activation_approval_id: approvalItem.id,
@@ -1599,9 +1646,14 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("agency_id", agencyId)
-        .eq("id", onboardingId);
+        .eq("id", onboardingId)
+        .select();
 
-      await db.from("audit_events").insert({
+      if (updateErr || !updatedOnb || updatedOnb.length === 0) {
+        return Response.json({ error: "Falha ao atualizar status de ativação do onboarding." }, { status: 404 });
+      }
+
+      const { error: auditErr } = await db.from("audit_events").insert({
         agency_id: agencyId,
         client_id: onb.client_id,
         action: "client_onboarding_activation_submitted",
@@ -1610,120 +1662,331 @@ export async function POST(request: Request) {
         payload: { onboardingId, notes },
       });
 
+      if (auditErr) {
+        return Response.json({ error: "Falha ao registrar auditoria da submissão de ativação." }, { status: 500 });
+      }
+
       return Response.json({ success: true, approvalId: approvalItem.id });
     }
 
-    return Response.json({ success: true, approvalId: "app-local-01" });
+    // Memória local
+    const onb = memoryStore.onboardings.get(onboardingId);
+    if (!onb || onb.agencyId !== agencyId) {
+      return Response.json({ error: "Onboarding não encontrado ou não pertencente à agência." }, { status: 404 });
+    }
+    if (!onb.clientId) {
+      return Response.json({ error: "Onboarding deve possuir cliente válido antes de submeter ativação." }, { status: 400 });
+    }
+
+    const appLocalId = `app-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    memoryStore.approvalItems.set(appLocalId, {
+      id: appLocalId,
+      agency_id: agencyId,
+      client_id: onb.clientId,
+      source_type: "client_onboarding_activation",
+      source_id: onboardingId,
+      status: "pending",
+    });
+
+    onb.activationApprovalId = appLocalId;
+    onb.status = "ready_for_activation";
+    onb.currentStage = "ready_for_activation";
+
+    return Response.json({ success: true, approvalId: appLocalId });
   }
 
-  // 15. Aprovar Ativação Operacional (Entrega 03.10)
+  // 15. Aprovar Ativação Operacional (Hardening de Segurança e Ativação Atômica)
   if (input.action === "approve_activation") {
+    // 1. Autorização por Função (RBAC) & Segregação de Funções (SoD)
+    const permCheck = validateActivationApprovalPermission({
+      actorRole: actor.role,
+      actorId: actor.actorId,
+    });
+    if (!permCheck.allowed) {
+      return Response.json(
+        { error: permCheck.reason || "Permissão insuficiente para aprovar ativação de clientes." },
+        { status: 403 }
+      );
+    }
+
     const { onboardingId, notes } = input;
 
     if (db) {
-      const { data: onb } = await db
+      // 2. Busca o onboarding da agência autenticada
+      const { data: onb, error: onbErr } = await db
         .from("client_onboardings")
         .select("*")
         .eq("agency_id", agencyId)
         .eq("id", onboardingId)
         .maybeSingle();
 
-      if (!onb || !onb.client_id) {
+      if (onbErr || !onb) {
+        return Response.json({ error: "Onboarding não encontrado ou não pertencente à agência autenticada." }, { status: 404 });
+      }
+
+      if (onb.status === "active") {
+        return Response.json({ error: "Onboarding já se encontra ativado." }, { status: 409 });
+      }
+
+      if (onb.status === "blocked" || onb.status === "cancelled") {
+        return Response.json({ error: "Onboarding bloqueado ou cancelado não pode ser ativado." }, { status: 409 });
+      }
+
+      if (!onb.client_id) {
         return Response.json({ error: "Onboarding deve possuir cliente válido para ativação." }, { status: 400 });
       }
 
-      // Transicionar cliente para 'active'
-      await db
-        .from("clients")
-        .update({ status: "active", updated_at: new Date().toISOString() })
+      // 3. Validação estrita do item de aprovação pendente (Requirement 5)
+      let approvalQuery = db
+        .from("approval_items")
+        .select("*")
         .eq("agency_id", agencyId)
-        .eq("id", onb.client_id);
+        .eq("source_type", "client_onboarding_activation")
+        .eq("source_id", onboardingId)
+        .eq("status", "pending");
 
-      // Ativar serviços contratados
-      await db
-        .from("client_services")
-        .update({ status: "active", updated_at: new Date().toISOString() })
-        .eq("agency_id", agencyId)
-        .eq("client_id", onb.client_id);
-
-      // Transicionar onboarding para 'active'
-      const activatedAt = new Date().toISOString();
-      await db
-        .from("client_onboardings")
-        .update({
-          status: "active",
-          current_stage: "active",
-          activated_at: activatedAt,
-          activated_by_actor_id: actor.actorId,
-          updated_at: activatedAt,
-        })
-        .eq("agency_id", agencyId)
-        .eq("id", onboardingId);
-
-      // Atualizar approval_item se existir
       if (onb.activation_approval_id) {
-        await db
-          .from("approval_items")
-          .update({
-            status: "approved",
-            decision_by_email: email,
-            decision_note: notes || "Ativação aprovada pela liderança operacional.",
-            decided_at: activatedAt,
-          })
-          .eq("id", onb.activation_approval_id);
+        approvalQuery = approvalQuery.eq("id", onb.activation_approval_id);
       }
 
-      // Registrar decisão
-      await db.from("client_onboarding_decisions").insert({
-        id: `dec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        agency_id: agencyId,
-        onboarding_id: onboardingId,
-        decision_type: "activation_approved",
-        actor_id: actor.actorId,
-        actor_name: email,
-        actor_role: actor.role,
-        reason: "Checklist de ativação cumprido e cliente aprovado para entrada em recorrência.",
-        metadata: { notes, activatedAt },
+      const { data: pendingApproval, error: appErr } = await approvalQuery.maybeSingle();
+      if (appErr || !pendingApproval) {
+        return Response.json(
+          { error: "Item de aprovação formal de ativação pendente não encontrado para este onboarding." },
+          { status: 409 }
+        );
+      }
+
+      // 4. Recálculo dos 11 critérios de prontidão a partir do estado fresco do banco (Requirement 3)
+      const [unitsRes, reqsRes, baselinesRes, plansRes] = await Promise.all([
+        db.from("client_units").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId),
+        db.from("client_onboarding_requirements").select("*").eq("agency_id", agencyId).eq("onboarding_id", onboardingId),
+        db.from("client_onboarding_baselines").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId).limit(1),
+        db.from("client_onboarding_plans").select("id").eq("agency_id", agencyId).eq("onboarding_id", onboardingId).limit(1),
+      ]);
+
+      const unitsList = unitsRes.data || [];
+      const reqsList = reqsRes.data || [];
+      const baselinesList = baselinesRes.data || [];
+      const plansList = plansRes.data || [];
+
+      const pendingAccesses = reqsList.filter(
+        (r: any) => r.category === "access_credentials" && r.is_required && r.status !== "verified" && r.status !== "waived"
+      ).length;
+
+      const pendingRequiredReqs = reqsList.filter(
+        (r: any) => r.is_required && r.status !== "verified" && r.status !== "waived"
+      );
+
+      const readiness = calculateActivationChecklist({
+        isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation"].includes(onb.status) && !onb.divergence_reason,
+        hasValidClient: Boolean(onb.client_id),
+        unitsCount: unitsList.length,
+        enabledServicesCount: onb.client_id ? 1 : 0,
+        isDnaMinimumConfirmed: ["building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation"].includes(onb.status),
+        pendingRequiredAccesses: pendingAccesses,
+        hasBaseline: baselinesList.length > 0,
+        hasImplementationPlan: plansList.length > 0,
+        hasAssignedResponsible: Boolean(onb.assigned_operator_actor_id || onb.created_by_actor_id),
+        hasOpenBlockers: onb.status === "blocked" || onb.status === "cancelled" || Boolean(onb.blocking_reason),
+        isHumanApprovalRecorded: false,
       });
 
-      // Auditoria
-      await db.from("audit_events").insert({
-        agency_id: agencyId,
-        client_id: onb.client_id,
-        action: "client_onboarding_activated",
-        target_type: "client",
-        target_id: onb.client_id,
-        payload: { onboardingId, activatedAt, notes },
-      });
+      const missingCriteria = readiness.items
+        .filter((i) => i.key !== "human_approval_recorded" && !i.fulfilled)
+        .map((i) => i.label);
 
-      return Response.json({ success: true, status: "active", activatedAt });
+      if (pendingRequiredReqs.length > 0) {
+        for (const r of pendingRequiredReqs) {
+          const msg = `Requisito obrigatório pendente: ${r.title}`;
+          if (!missingCriteria.includes(msg)) missingCriteria.push(msg);
+        }
+      }
+
+      // Se qualquer critério falhar: não altera nenhum registro e retorna 409
+      if (missingCriteria.length > 0) {
+        return Response.json(
+          {
+            error: "Critérios de ativação pendentes. Impossível ativar o cliente.",
+            missingCriteria,
+            score: readiness.score,
+          },
+          { status: 409 }
+        );
+      }
+
+      // 5. Ativação Realmente Atômica via RPC transacional do PostgreSQL (Requirement 4)
+      const { data: rpcResult, error: rpcErr } = await db.rpc(
+        "onboarding_activate_client",
+        {
+          p_agency_id: agencyId,
+          p_onboarding_id: onboardingId,
+          p_actor_id: actor.actorId,
+          p_approval_id: pendingApproval.id,
+          p_notes: notes || null,
+        }
+      );
+
+      if (rpcErr) {
+        if (rpcErr.code === "23505" || rpcErr.message?.includes("already_active")) {
+          return Response.json({ error: "Onboarding já se encontra ativado." }, { status: 409 });
+        }
+        if (rpcErr.code === "P0002" || rpcErr.message?.includes("not_found")) {
+          return Response.json({ error: "Registro não encontrado ou item de aprovação não está pendente." }, { status: 409 });
+        }
+        return Response.json({ error: `Falha na ativação atômica: ${rpcErr.message}` }, { status: 500 });
+      }
+
+      return Response.json({
+        success: true,
+        status: "active",
+        activatedAt: rpcResult?.activated_at || new Date().toISOString(),
+        onboardingId,
+        clientId: onb.client_id,
+        approvalId: pendingApproval.id,
+      });
     }
 
-    // Memória local
+    // Memória local para testes e desenvolvimento offline
     const onb = memoryStore.onboardings.get(onboardingId);
-    if (!onb || !onb.clientId) {
+    if (!onb || onb.agencyId !== agencyId) {
+      return Response.json({ error: "Onboarding não encontrado ou não pertencente à agência." }, { status: 404 });
+    }
+    if (onb.status === "active") {
+      return Response.json({ error: "Onboarding já se encontra ativado." }, { status: 409 });
+    }
+    if (onb.status === "blocked" || onb.status === "cancelled") {
+      return Response.json({ error: "Onboarding bloqueado ou cancelado não pode ser ativado." }, { status: 409 });
+    }
+    if (!onb.clientId) {
       return Response.json({ error: "Onboarding deve possuir cliente válido para ativação." }, { status: 400 });
     }
 
+    const unitsList = memoryStore.units.get(onboardingId) || [];
+    const reqsList = memoryStore.requirements.get(onboardingId) || [];
+    const baselinesList = memoryStore.baselines.get(onboardingId) || [];
+    const hasPlan = Boolean(memoryStore.plans.get(onboardingId));
+
+    // Busca o item de aprovação
+    const pendingApproval = onb.activationApprovalId
+      ? memoryStore.approvalItems.get(onb.activationApprovalId)
+      : Array.from(memoryStore.approvalItems.values()).find(
+          (a) =>
+            a.agency_id === agencyId &&
+            a.source_type === "client_onboarding_activation" &&
+            a.source_id === onboardingId &&
+            a.status === "pending"
+        );
+
+    if (!pendingApproval || pendingApproval.status !== "pending") {
+      return Response.json(
+        { error: "Item de aprovação formal de ativação pendente não encontrado para este onboarding." },
+        { status: 409 }
+      );
+    }
+
+    const pendingAccesses = reqsList.filter(
+      (r) => r.category === "access_credentials" && r.isRequired && r.status !== "verified" && r.status !== "waived"
+    ).length;
+    const pendingRequiredReqs = reqsList.filter(
+      (r) => r.isRequired && r.status !== "verified" && r.status !== "waived"
+    );
+
+    const readiness = calculateActivationChecklist({
+      isSalesVerified: ["awaiting_operations_review", "awaiting_client_information", "collecting_access", "building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation"].includes(onb.status) && !onb.divergenceReason,
+      hasValidClient: Boolean(onb.clientId),
+      unitsCount: unitsList.length,
+      enabledServicesCount: onb.clientId ? 1 : 0,
+      isDnaMinimumConfirmed: ["building_dna", "establishing_baseline", "planning_implementation", "ready_for_activation"].includes(onb.status),
+      pendingRequiredAccesses: pendingAccesses,
+      hasBaseline: baselinesList.length > 0,
+      hasImplementationPlan: hasPlan,
+      hasAssignedResponsible: Boolean(onb.assignedOperatorActorId || onb.createdByActorId),
+      hasOpenBlockers: Boolean(onb.blockingReason),
+      isHumanApprovalRecorded: false,
+    });
+
+    const missingCriteria = readiness.items
+      .filter((i) => i.key !== "human_approval_recorded" && !i.fulfilled)
+      .map((i) => i.label);
+
+    if (pendingRequiredReqs.length > 0) {
+      for (const r of pendingRequiredReqs) {
+        const msg = `Requisito obrigatório pendente: ${r.title}`;
+        if (!missingCriteria.includes(msg)) missingCriteria.push(msg);
+      }
+    }
+
+    if (missingCriteria.length > 0) {
+      return Response.json(
+        {
+          error: "Critérios de ativação pendentes. Impossível ativar o cliente.",
+          missingCriteria,
+          score: readiness.score,
+        },
+        { status: 409 }
+      );
+    }
+
+    // Ativação atômica em memória
     const activatedAt = new Date().toISOString();
     onb.status = "active";
     onb.currentStage = "active";
     onb.activatedAt = activatedAt;
     onb.activatedByActorId = actor.actorId;
+    onb.activationApprovalId = pendingApproval.id;
+    pendingApproval.status = "approved";
 
     const client = memoryStore.clients.get(onb.clientId);
     if (client) client.status = "active";
 
-    return Response.json({ success: true, status: "active", activatedAt });
+    const servs = memoryStore.clientServices.get(onb.clientId);
+    if (servs) {
+      for (const s of servs) s.status = "active";
+    }
+
+    return Response.json({
+      success: true,
+      status: "active",
+      activatedAt,
+      onboardingId,
+      clientId: onb.clientId,
+      approvalId: pendingApproval.id,
+    });
   }
 
-  // 16. Bloquear ou Cancelar Onboarding
+  // 16. Bloquear, Cancelar ou Desbloquear Onboarding (RBAC e Validação de Afetação)
   if (input.action === "block_or_cancel") {
     const { onboardingId, operation, reason } = input;
-    const targetStatus: OnboardingStage = operation === "block" ? "blocked" : operation === "cancel" ? "cancelled" : "awaiting_operations_review";
+
+    if (operation === "cancel" && !canCancelOnboarding(actor.role)) {
+      return Response.json(
+        { error: "Apenas owner, admin ou operations_lead podem cancelar o onboarding." },
+        { status: 403 }
+      );
+    }
+    if (operation === "unblock" && !canUnblockOnboarding(actor.role)) {
+      return Response.json(
+        { error: "Apenas owner, admin ou operations_lead podem desbloquear o onboarding." },
+        { status: 403 }
+      );
+    }
+    if (operation === "block" && !canWriteOnboarding(actor.role)) {
+      return Response.json(
+        { error: "Permissão insuficiente para bloquear o onboarding." },
+        { status: 403 }
+      );
+    }
+
+    const targetStatus: OnboardingStage =
+      operation === "block"
+        ? "blocked"
+        : operation === "cancel"
+        ? "cancelled"
+        : "awaiting_operations_review";
 
     if (db) {
-      await db
+      const { data: updatedRows, error: upErr } = await db
         .from("client_onboardings")
         .update({
           status: targetStatus,
@@ -1732,28 +1995,53 @@ export async function POST(request: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("agency_id", agencyId)
-        .eq("id", onboardingId);
+        .eq("id", onboardingId)
+        .select();
 
-      await db.from("client_onboarding_decisions").insert({
+      if (upErr) {
+        return Response.json({ error: "Erro ao atualizar status do onboarding." }, { status: 500 });
+      }
+      if (!updatedRows || updatedRows.length === 0) {
+        return Response.json(
+          { error: "Onboarding não encontrado ou não pertencente à agência." },
+          { status: 404 }
+        );
+      }
+
+      const { error: decErr } = await db.from("client_onboarding_decisions").insert({
         id: `dec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         agency_id: agencyId,
         onboarding_id: onboardingId,
-        decision_type: operation === "block" ? "onboarding_blocked" : operation === "cancel" ? "onboarding_cancelled" : "onboarding_unblocked",
+        decision_type:
+          operation === "block"
+            ? "onboarding_blocked"
+            : operation === "cancel"
+            ? "onboarding_cancelled"
+            : "onboarding_unblocked",
         actor_id: actor.actorId,
         actor_name: email,
         actor_role: actor.role,
         reason,
       });
 
+      if (decErr) {
+        return Response.json({ error: "Falha ao registrar decisão." }, { status: 500 });
+      }
+
       return Response.json({ success: true, status: targetStatus });
     }
 
     const onb = memoryStore.onboardings.get(onboardingId);
-    if (onb && onb.agencyId === agencyId) {
-      onb.status = targetStatus;
-      onb.currentStage = targetStatus;
-      onb.blockingReason = operation === "unblock" ? undefined : reason;
+    if (!onb || onb.agencyId !== agencyId) {
+      return Response.json(
+        { error: "Onboarding não encontrado ou não pertencente à agência." },
+        { status: 404 }
+      );
     }
+
+    onb.status = targetStatus;
+    onb.currentStage = targetStatus;
+    onb.blockingReason = operation === "unblock" ? undefined : reason;
 
     return Response.json({ success: true, status: targetStatus });
   }

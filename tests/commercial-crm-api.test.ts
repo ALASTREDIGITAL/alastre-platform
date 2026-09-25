@@ -7,6 +7,7 @@ function createMockRequest(body: unknown, headers: Record<string, string> = {}):
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-alastre-test-role": "commercial_lead",
       ...headers,
     },
     body: JSON.stringify(body),
@@ -313,12 +314,15 @@ describe("Módulo 02: Comercial & CRM - API Server-side", () => {
 
       // Operações aprova para onboarding (sem criar cliente automaticamente)
       const reviewRes = await POST(
-        createMockRequest({
-          action: "review_handoff",
-          handoff_id: handoff.id,
-          decision: "approved_for_onboarding",
-          operations_notes: "Venda validada contra matriz da fábrica. Pronto para kickoff.",
-        })
+        createMockRequest(
+          {
+            action: "review_handoff",
+            handoff_id: handoff.id,
+            decision: "approved_for_onboarding",
+            operations_notes: "Venda validada contra matriz da fábrica. Pronto para kickoff.",
+          },
+          { "x-alastre-test-role": "operations_lead" }
+        )
       );
       assert.equal(reviewRes.status, 200);
       const { handoff: reviewedHand } = await reviewRes.json();

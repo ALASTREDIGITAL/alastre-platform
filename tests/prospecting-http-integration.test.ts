@@ -6,10 +6,8 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const BASE_URL = "http://127.0.0.1:5176";
 
-// Segredo efêmero exclusivo gerado dinamicamente para esta execução de teste
-const EPHEMERAL_TOKEN = `ephemeral-worker-secret-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+let EPHEMERAL_TOKEN = process.env.PROSPECTING_WORKER_SECRET_TOKEN || "";
 let serverChild: ChildProcess | null = null;
-let originalEnvLocal: string | null = null;
 
 describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2 e 5)", () => {
   before(async () => {
@@ -36,23 +34,26 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
       } catch {}
     }
 
-    // 2. Registra o segredo efêmero no .env.local para o Miniflare/Cloudflare vite-plugin carregar
+    // 2. Lê o segredo configurado sem alterar o .env.local em disco
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const envLocalPath = path.resolve(process.cwd(), ".env.local");
-    try {
-      originalEnvLocal = await fs.readFile(envLocalPath, "utf8");
-    } catch {
-      originalEnvLocal = null;
+    if (!EPHEMERAL_TOKEN) {
+      try {
+        const envLocalPath = path.resolve(process.cwd(), ".env.local");
+        const envContent = await fs.readFile(envLocalPath, "utf8");
+        const match = envContent.match(/PROSPECTING_WORKER_SECRET_TOKEN=([^\r\n]+)/);
+        if (match) {
+          EPHEMERAL_TOKEN = match[1].trim();
+        }
+      } catch {}
     }
-    const tokenLine = `\nPROSPECTING_WORKER_SECRET_TOKEN=${EPHEMERAL_TOKEN}\n`;
-    await fs.writeFile(envLocalPath, (originalEnvLocal || "") + tokenLine, "utf8");
-    await new Promise((r) => setTimeout(r, 1000));
+    if (!EPHEMERAL_TOKEN) {
+      EPHEMERAL_TOKEN = "alastre-homolog-token-live-session";
+    }
 
-    // 3. Inicia o servidor Vite na porta 5176 injetando o segredo efêmero estritamente via ambiente
-    const cmd = process.platform === "win32" ? "cmd.exe" : "npx";
-    const args = process.platform === "win32" ? ["/c", "npx.cmd", "vite", "--port", "5176"] : ["vite", "--port", "5176"];
-    serverChild = spawn(cmd, args, {
+    // 3. Inicia o servidor Vite na porta 5176 diretamente pelo runtime node
+    const viteBin = path.resolve(process.cwd(), "node_modules", "vite", "bin", "vite.js");
+    serverChild = spawn(process.execPath, [viteBin, "--port", "5176"], {
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -62,29 +63,23 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
     });
 
     serverChild.stdout?.on("data", (d) => {
-      process.stdout.write(`[VITE] ${d.toString()}`);
+      // process.stdout.write(`[VITE] ${d.toString()}`);
     });
     serverChild.stderr?.on("data", (d) => {
-      process.stderr.write(`[VITE-ERR] ${d.toString()}`);
+      // process.stderr.write(`[VITE-ERR] ${d.toString()}`);
     });
 
-    // 3. Aguarda o servidor inicializar e responder na porta 5176 (cold start no Windows pode levar ~45-60s)
+    // 4. Aguarda o servidor inicializar e responder na porta 5176
     let ready = false;
-    const maxAttempts = 120; // até ~96 segundos
+    const maxAttempts = 120;
     for (let i = 0; i < maxAttempts; i++) {
       try {
         const res = await fetch(`${BASE_URL}/api/internal/prospecting/worker/jobs`);
-        // Rota protegida sem token deve responder 401 Unauthorized (fail-closed ativo)
         if (res.status === 401) {
           ready = true;
           break;
         }
-      } catch {
-        // Aguarda servidor compilar rotas
-      }
-      if (i > 0 && i % 10 === 0) {
-        process.stdout.write(`... aguardando inicialização do Vite (${i * 800}ms)\n`);
-      }
+      } catch {}
       await new Promise((r) => setTimeout(r, 800));
     }
 
@@ -108,19 +103,7 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
       }
     }
 
-    // Restaura o arquivo .env.local original imediatamente
-    const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    const envLocalPath = path.resolve(process.cwd(), ".env.local");
-    try {
-      if (originalEnvLocal !== null) {
-        await fs.writeFile(envLocalPath, originalEnvLocal, "utf8");
-      } else {
-        await fs.unlink(envLocalPath).catch(() => {});
-      }
-    } catch {}
-
-    // Confirma que a porta 5175 foi liberada
+    // Confirma que a porta 5176 foi liberada
     await new Promise((r) => setTimeout(r, 600));
     let isPortClosed = true;
     try {
@@ -130,7 +113,7 @@ describe("Prospecting HTTP Integrated Routes with Ephemeral Secret (Requisitos 2
       isPortClosed = true;
     }
 
-    assert.equal(isPortClosed, true, "Porta 5175 deve estar completamente encerrada após o teste");
+    assert.equal(isPortClosed, true, "Porta 5176 deve estar completamente encerrada após o teste");
   });
 
   it("proves fail-closed security and full 4-route lifecycle using the ephemeral secret", async () => {

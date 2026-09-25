@@ -7,9 +7,8 @@ import { detectOpportunities } from "../lib/prospecting/opportunity-detector.ts"
 const execFileAsync = promisify(execFile);
 const BASE_URL = "http://127.0.0.1:5175";
 
-const EPHEMERAL_TOKEN = `functional-flow-secret-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+let EPHEMERAL_TOKEN = process.env.PROSPECTING_WORKER_SECRET_TOKEN || "";
 let serverChild: ChildProcess | null = null;
-let originalEnvLocal: string | null = null;
 
 describe("Prospecting Functional Flow & Operator Integration (Requisitos 1 a 8)", () => {
   before(async () => {
@@ -36,25 +35,26 @@ describe("Prospecting Functional Flow & Operator Integration (Requisitos 1 a 8)"
       } catch {}
     }
 
-    // 2. Registra o segredo efêmero no .env.local para o Miniflare/Cloudflare vite-plugin carregar
+    // 2. Lê o segredo configurado sem alterar o .env.local em disco
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const envLocalPath = path.resolve(process.cwd(), ".env.local");
-    try {
-      originalEnvLocal = await fs.readFile(envLocalPath, "utf8");
-    } catch {
-      originalEnvLocal = null;
+    if (!EPHEMERAL_TOKEN) {
+      try {
+        const envLocalPath = path.resolve(process.cwd(), ".env.local");
+        const envContent = await fs.readFile(envLocalPath, "utf8");
+        const match = envContent.match(/PROSPECTING_WORKER_SECRET_TOKEN=([^\r\n]+)/);
+        if (match) {
+          EPHEMERAL_TOKEN = match[1].trim();
+        }
+      } catch {}
     }
-    const tokenLine = `\nPROSPECTING_WORKER_SECRET_TOKEN=${EPHEMERAL_TOKEN}\n`;
-    await fs.writeFile(envLocalPath, (originalEnvLocal || "") + tokenLine, "utf8");
+    if (!EPHEMERAL_TOKEN) {
+      EPHEMERAL_TOKEN = "alastre-homolog-token-live-session";
+    }
 
-    // 3. Inicia o servidor Vite na porta 5175
-    const cmd = process.platform === "win32" ? "cmd.exe" : "npx";
-    const args =
-      process.platform === "win32"
-        ? ["/c", "npx.cmd", "vite", "--port", "5175"]
-        : ["vite", "--port", "5175"];
-    serverChild = spawn(cmd, args, {
+    // 3. Inicia o servidor Vite na porta 5175 diretamente pelo runtime node
+    const viteBin = path.resolve(process.cwd(), "node_modules", "vite", "bin", "vite.js");
+    serverChild = spawn(process.execPath, [viteBin, "--port", "5175"], {
       cwd: process.cwd(),
       env: {
         ...process.env,
@@ -104,18 +104,6 @@ describe("Prospecting Functional Flow & Operator Integration (Requisitos 1 a 8)"
         } catch {}
       }
     }
-
-    // Restaura o arquivo .env.local original imediatamente
-    const fs = await import("node:fs/promises");
-    const path = await import("node:path");
-    const envLocalPath = path.resolve(process.cwd(), ".env.local");
-    try {
-      if (originalEnvLocal !== null) {
-        await fs.writeFile(envLocalPath, originalEnvLocal, "utf8");
-      } else {
-        await fs.unlink(envLocalPath).catch(() => {});
-      }
-    } catch {}
 
     // Confirma que a porta 5175 foi liberada
     await new Promise((r) => setTimeout(r, 600));

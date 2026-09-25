@@ -121,16 +121,41 @@ Implementada em `app/client-onboarding-module.tsx` e conectada ao `app/app-shell
 - **Tratamento de Estados**: Cobertura completa de loading (esqueletos/spinners), vazio (empty states orientativos), parcial (avisos de lacunas), erro (alertas com retry), não autorizado (401) e indisponível (500).
 - **Ajuda Contextual**: Conectada a 7 tópicos em `lib/help-content.ts` via `PageHeader` (`helpKey="client_onboarding.overview"`).
 
+## Hardening de Segurança, Autenticação e Ativação Atômica (2026-09-24)
+
+- **Eliminação de Fallback Inseguro**: Removidos completamente os fallbacks em memória e valores estáticos (`actor_local`, agência `00000000-0000-0000-0000-000000000001`, role `operator`). Todas as requisições passam por `resolveAuthenticatedActor`:
+  - Banco configurado + resolução de ator falha: **403 Forbidden**.
+  - Banco indisponível ou configuração ausente em produção: **503 Service Unavailable**.
+  - Armazenamento em memória restrito exclusivamente a desenvolvimento e testes locais.
+  - O campo `agency_id` do payload é estritamente ignorado em favor da agência autenticada do ator.
+- **RBAC Centralizado e Segregação de Funções (SoD)**:
+  - Implementado em `lib/permissions.ts` e `lib/rbac.ts`.
+  - Ativação (`approve_activation`), cancelamento e desbloqueio restritos a `owner`, `admin` e `operations_lead`.
+  - Operadores (`operator`) e visualizadores (`viewer`) são terminantemente impedidos de aprovar ativações (SoD).
+- **Activation Gate Real**:
+  - `approve_activation` recalcula os 11 critérios de prontidão a partir do estado fresco do banco/armazenamento.
+  - Valida o item de aprovação pendente (`approval_items`) com checagem estrita de `agency_id`, `source_type = 'client_onboarding_activation'`, `source_id = onboardingId` e `status = 'pending'`.
+  - Se faltar qualquer critério, retorna **409 Conflict** com a lista de pendências (`missingCriteria`), sem tocar ou mutar nenhum registro.
+- **Ativação Atômica via RPC PostgreSQL**:
+  - Migration `20260924130000_client_onboarding_atomic_activation.sql` aplicada na homologação (`fifbtwbndutbvwnbzgtz`).
+  - Função `public.onboarding_activate_client` executada em transação única com `FOR UPDATE`, atualizando `client_onboardings`, `clients`, `client_services` e `approval_items`.
+  - Revogado de `public`, `anon` e `authenticated`; concedido apenas a `service_role`.
+  - Bloqueia ativação dupla concorrente ou repetida retornando **409 Conflict**.
+- **Prevenção de Falso Sucesso**:
+  - Todas as mutações validam o número de linhas afetadas (`data.length > 0`), retornando **404 Not Found** se 0 linhas foram afetadas, e verificam a inserção em `audit_events` (retornando **500 Internal Server Error** em caso de falha de auditoria).
+
 ## Verificação e Definition of Done
 
 | Verificação | Comando | Resultado |
 | --- | --- | --- |
-| Testes de Domínio | `npx tsx tests/client-onboarding-domain.test.ts` | 10/10 aprovados |
-| Testes de Segurança DB | `npx tsx tests/client-onboarding-security.test.ts` | 1/1 aprovado |
-| Testes de API | `npx tsx tests/client-onboarding-api.test.ts` | 4/4 aprovados |
-| Testes de Navegação & UI | `npx tsx tests/client-onboarding-navigation-and-ui.test.ts` | 10/10 aprovados |
+| Testes de Domínio | `node --test tests/client-onboarding-domain.test.ts` | 10/10 aprovados |
+| Testes de Segurança DB | `node --test tests/client-onboarding-security.test.ts` | 1/1 aprovado |
+| Testes de API | `node --test tests/client-onboarding-api.test.ts` | 4/4 aprovados |
+| Testes de Navegação & UI | `node --test tests/client-onboarding-navigation-and-ui.test.ts` | 10/10 aprovados |
+| Testes de Hardening (M01, M02, M03) | `node --test tests/hardening-auth-tenant-activation.test.ts` | 6/6 aprovados |
 | Type-checking TypeScript | `npx tsc --noEmit` | 0 erros |
-| Linter ESLint | `npx eslint lib/client-onboarding* app/api/client-onboarding* app/client-onboarding* tests/client-onboarding*` | 0 erros |
+| Linter ESLint | `npx eslint lib/permissions.ts lib/rbac.ts app/api/client-onboarding app/client-onboarding` | 0 erros |
 | Build de Produção | `npm run build` | 0 erros (`/api/client-onboarding` compilado) |
 | Supabase Security Advisors | `npx supabase db advisors --linked` | 0 erros, 0 alertas de segurança |
 | Migration Remota | `npx supabase db push` | Aplicada com sucesso no ref `fifbtwbndutbvwnbzgtz` |
+

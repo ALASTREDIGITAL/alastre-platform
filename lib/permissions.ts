@@ -1,0 +1,92 @@
+export type UserRole =
+  | "owner"
+  | "admin"
+  | "operations_lead"
+  | "commercial_lead"
+  | "operator"
+  | "sales_rep"
+  | "viewer";
+
+/**
+ * 01. Validação centralizada de permissões para a Fábrica de Produtos (Módulo 01)
+ */
+export function canWriteProductFactory(role: string): boolean {
+  return ["owner", "admin", "operations_lead", "operator"].includes(role);
+}
+
+export function canApproveProduct(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+/**
+ * 02. Validação centralizada de permissões para Comercial & CRM (Módulo 02)
+ */
+export function canWriteCommercial(role: string): boolean {
+  return ["owner", "admin", "commercial_lead", "sales_rep", "operator"].includes(role);
+}
+
+export function canReviewSales(role: string): boolean {
+  return ["owner", "admin", "commercial_lead", "sales_rep"].includes(role);
+}
+
+export function canAcceptProposal(role: string): boolean {
+  return ["owner", "admin", "commercial_lead", "sales_rep"].includes(role);
+}
+
+export function canCreateSalesHandoff(role: string): boolean {
+  return ["owner", "admin", "commercial_lead", "sales_rep"].includes(role);
+}
+
+/**
+ * 03. Validação centralizada de permissões para Onboarding de Clientes (Módulo 03)
+ */
+export function canWriteOnboarding(role: string): boolean {
+  return ["owner", "admin", "operations_lead", "operator"].includes(role);
+}
+
+export function canReviewOperations(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+export function canCancelOnboarding(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+export function canUnblockOnboarding(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+export function canApproveActivation(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+/**
+ * 04. Segregação de Funções (SoD) na Ativação de Clientes
+ * Operadores não possuem permissão para autoaprovação de ativações.
+ * Apenas liderança (owner, admin, operations_lead) pode aprovar formalmente.
+ */
+export function validateActivationApprovalPermission(params: {
+  actorRole: string;
+  actorId: string;
+  assignedOperatorActorId?: string | null;
+  createdByActorId?: string | null;
+}): { allowed: boolean; reason?: string } {
+  const { actorRole } = params;
+
+  if (!canApproveActivation(actorRole)) {
+    return {
+      allowed: false,
+      reason: "Operadores não possuem permissão para aprovar ativação de clientes. Papel requerido: owner, admin ou operations_lead.",
+    };
+  }
+
+  // Segregação adicional defensiva: se o papel for operator, recusa terminantemente
+  if (actorRole === "operator") {
+    return {
+      allowed: false,
+      reason: "Segregação de funções violada: operador não pode aprovar ativação.",
+    };
+  }
+
+  return { allowed: true };
+}
