@@ -799,7 +799,7 @@ export class AutomationService {
       throw new Error("approval_item_not_approved");
     }
 
-    if ((apprItem.proposed_payload as any)?.plan_hash !== input.plan_hash) {
+    if ((apprItem.proposed_payload as Record<string, unknown>)?.plan_hash !== input.plan_hash) {
       throw new Error("plan_hash_mismatch");
     }
 
