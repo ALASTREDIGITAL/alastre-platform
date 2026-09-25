@@ -17,6 +17,7 @@ test("Módulo 04 Operations Engine — API Completa e Regras de Negócio", async
   operationsMemoryStore.clear();
 
   const tenantAgencyId = "00000000-0000-0000-0000-000000000001";
+  const otherAgencyId = "00000000-0000-0000-0000-000000000002";
   const clientId = "c1000000-0000-0000-0000-000000000001";
 
   // 1. Listar Workspace inicialmente vazio
@@ -225,5 +226,147 @@ test("Módulo 04 Operations Engine — API Completa e Regras de Negócio", async
     assert.equal(resolveRes.status, 200);
     const resolveData = await resolveRes.json();
     assert.equal(resolveData.exception.status, "resolved");
+  });
+
+  // 10. Rejeição de Vínculos Cross-Tenant e Isolamento Multi-Tenant na API
+  await t.test("10. API rejeita acesso e mutações em recursos de outra agência (cross-tenant)", async () => {
+    const foreignWfId = "f0000000-0000-0000-0000-000000000099";
+    const foreignItemId = "f0000000-0000-0000-0000-000000000088";
+    const foreignExcId = "f0000000-0000-0000-0000-000000000077";
+
+    // Injeta dados da Agência B no store
+    operationsMemoryStore.workflows.push({
+      id: foreignWfId,
+      agency_id: otherAgencyId,
+      client_id: "c2000000-0000-0000-0000-000000000002",
+      unit_id: null,
+      service_id: null,
+      template_id: null,
+      title: "Workflow Confidencial Agência B",
+      workflow_type: "implementation",
+      status: "pending",
+      priority: "high",
+      progress_percentage: 0,
+      total_estimated_minutes: 100,
+      total_actual_minutes: 0,
+      blocked_reason: null,
+      target_start_date: "2026-09-25",
+      target_due_date: null,
+      started_at: null,
+      completed_at: null,
+      assigned_actor_id: null,
+      metadata: {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    operationsMemoryStore.workItems.push({
+      id: foreignItemId,
+      agency_id: otherAgencyId,
+      client_id: "c2000000-0000-0000-0000-000000000002",
+      workflow_id: foreignWfId,
+      unit_id: null,
+      title: "Tarefa Secreta Agência B",
+      description: "",
+      task_type: "manual",
+      frequency: "one_off",
+      status: "todo",
+      priority: "high",
+      estimated_minutes: 30,
+      actual_minutes: 0,
+      due_date: null,
+      sla_hours: 24,
+      sla_status: "on_track",
+      depends_on_item_ids: [],
+      assigned_actor_id: null,
+      assigned_actor_name: null,
+      requires_approval: false,
+      approval_item_id: null,
+      evidence_required: false,
+      evidence_text: null,
+      evidence_url: null,
+      acceptance_criteria: "",
+      sop_reference: null,
+      blocked_reason: null,
+      client_action_required: null,
+      completed_at: null,
+      completed_by_actor_id: null,
+      order_index: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    operationsMemoryStore.exceptions.push({
+      id: foreignExcId,
+      agency_id: otherAgencyId,
+      client_id: "c2000000-0000-0000-0000-000000000002",
+      workflow_id: foreignWfId,
+      work_item_id: foreignItemId,
+      severity: "critical",
+      status: "open",
+      category: "system_error",
+      description: "Incidente da Agência B",
+      resolution_notes: null,
+      reported_by_actor_id: "actor-b@other.com",
+      resolved_by_actor_id: null,
+      resolved_at: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+
+    // 10.1 list_workspace para Agência A NÃO traz recursos da Agência B
+    const listReq = createMockRequest({ action: "list_workspace" });
+    const listRes = await POST(listReq as any);
+    const listData = await listRes.json();
+    assert.equal(
+      listData.workflows.some((w: any) => w.id === foreignWfId),
+      false,
+      "Workflow da Agência B não deve ser listado para Agência A"
+    );
+    assert.equal(
+      listData.workItems.some((i: any) => i.id === foreignItemId),
+      false,
+      "Work item da Agência B não deve ser listado para Agência A"
+    );
+    assert.equal(
+      listData.exceptions.some((e: any) => e.id === foreignExcId),
+      false,
+      "Exceção da Agência B não deve ser listada para Agência A"
+    );
+
+    // 10.2 Tentar iniciar tarefa da Agência B como Agência A
+    const startReq = createMockRequest({
+      action: "start_task",
+      work_item_id: foreignItemId,
+    });
+    const startRes = await POST(startReq as any);
+    assert.equal(startRes.status, 404, "Tentativa de iniciar tarefa de outro tenant deve retornar 404");
+
+    // 10.3 Tentar concluir tarefa da Agência B como Agência A
+    const completeReq = createMockRequest({
+      action: "complete_task",
+      work_item_id: foreignItemId,
+    });
+    const completeRes = await POST(completeReq as any);
+    assert.equal(completeRes.status, 404, "Tentativa de concluir tarefa de outro tenant deve retornar 404");
+
+    // 10.4 Tentar apontar tempo em tarefa da Agência B
+    const logTimeReq = createMockRequest({
+      action: "log_time",
+      client_id: clientId,
+      work_item_id: foreignItemId,
+      minutes_spent: 30,
+    });
+    const logTimeRes = await POST(logTimeReq as any);
+    assert.equal(logTimeRes.status, 404, "Tentativa de apontar tempo em tarefa de outro tenant deve retornar 404");
+
+    // 10.5 Tentar resolver exceção da Agência B
+    const resolveExcReq = createMockRequest({
+      action: "resolve_exception",
+      exception_id: foreignExcId,
+      resolution_notes: "Tentativa cross-tenant",
+    });
+    const resolveExcRes = await POST(resolveExcReq as any);
+    assert.equal(resolveExcRes.status, 404, "Tentativa de resolver exceção de outro tenant deve retornar 404");
   });
 });
