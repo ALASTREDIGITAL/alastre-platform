@@ -85,8 +85,8 @@ export function AutomationModule({
 
   // Formulários interativos para testes e simulação segura
   const [idempotencyKeyInput, setIdempotencyKeyInput] = useState(`idemp-${Date.now()}`);
-  const [capabilityInput] = useState("google_business_profile");
-  const [actionNameInput] = useState("sync_location_metadata");
+  const [capabilityInput, setCapabilityInput] = useState("google_business_profile");
+  const [actionNameInput, setActionNameInput] = useState("sync_location_metadata");
   const [actionTypeInput] = useState("publish_post_draft");
 
   const loadData = useCallback(async (signal?: AbortSignal) => {
@@ -202,6 +202,27 @@ export function AutomationModule({
       await loadData();
     } catch (err: unknown) {
       setNotice(`Erro: ${err instanceof Error ? err.message : "Falha na criação do plano"}`);
+    }
+  };
+
+  const handleApproveWritePlan = async (planId: string, planHash: string) => {
+    setNotice(null);
+    try {
+      const res = await authFetch("/api/automation", {
+        method: "POST",
+        body: JSON.stringify({
+          action: "approve_write_plan",
+          plan_id: planId,
+          plan_hash: planHash,
+          decision: "approve",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error?.message ?? "Falha ao aprovar plano");
+      setNotice(`Plano aprovado com sucesso em Central de Aprovações! Pronto para execução.`);
+      await loadData();
+    } catch (err: unknown) {
+      setNotice(`Erro: ${err instanceof Error ? err.message : "Falha na aprovação"}`);
     }
   };
 
@@ -572,15 +593,26 @@ export function AutomationModule({
                       Status: <strong>{plan.status.toUpperCase()}</strong> | Suporta Rollback: {plan.supports_rollback ? "Sim" : "Não"}
                     </small>
                   </div>
-                  {plan.status === "pending_approval" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void handleExecuteWritePlan(plan.id, plan.plan_hash)}
-                    >
-                      <Lock className="w-3 h-3" /> Aprovar & Executar
-                    </Button>
-                  )}
+                  <div style={{ display: "flex", gap: "0.4rem" }}>
+                    {plan.status === "pending_approval" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleApproveWritePlan(plan.id, plan.plan_hash)}
+                      >
+                        <ShieldCheck className="w-3 h-3" /> Aprovar Plano
+                      </Button>
+                    )}
+                    {plan.status === "approved" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void handleExecuteWritePlan(plan.id, plan.plan_hash)}
+                      >
+                        <Lock className="w-3 h-3" /> Executar Plano
+                      </Button>
+                    )}
+                  </div>
                 </article>
               ))
             ) : (

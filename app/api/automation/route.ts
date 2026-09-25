@@ -105,6 +105,11 @@ export async function POST(request: Request) {
         return Response.json(sanitizeSensitiveData(result));
       }
 
+      case "approve_write_plan": {
+        const result = await automationService.approveWritePlan(actor, actionData);
+        return Response.json(sanitizeSensitiveData(result));
+      }
+
       case "execute_write_plan": {
         const result = await automationService.executeWritePlan(actor, actionData);
         return Response.json(sanitizeSensitiveData(result));

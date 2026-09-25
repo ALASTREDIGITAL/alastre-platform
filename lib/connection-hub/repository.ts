@@ -1,6 +1,6 @@
 import "server-only";
 import type {SupabaseClient} from "@supabase/supabase-js";
-export type ActorContext={actorId:string;agencyId:string;role:"owner"|"admin"|"operator"|"viewer"};
+export type ActorContext={actorId:string;agencyId:string;role:"owner"|"admin"|"operations_lead"|"commercial_lead"|"operator"|"sales_rep"|"viewer"};
 export type AuthorizationSession={id:string;agency_id:string;initiated_by_actor_id:string;status:string;expires_at:string;pkce_credential_ref:string;return_path:string|null};
 const unwrap=<T>(data:T|null,error:{message:string}|null,code:string)=>{if(error||data===null)throw new Error(code);return data};
 export class ConnectionHubRepository{

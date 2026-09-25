@@ -205,7 +205,12 @@ export function computeWritePlanHash(input: {
 /**
  * Zod Schemas para as Ações da Automação
  */
-const uuidSchema = z.string().uuid("ID em formato UUID inválido");
+const uuidSchema = z.string().refine((val) => {
+  if (typeof val !== "string" || val.trim().length < 3) return false;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+  const isPrefixedId = /^(plan|job|conn|actor|appr|item|agency|client|work|evid)-/i.test(val);
+  return isUuid || isPrefixedId;
+}, "ID inválido: deve ser um UUID v4 ou ID estruturado da plataforma");
 
 export const AutomationSyncTriggerSchema = z.object({
   action: z.literal("sync_trigger"),
@@ -253,6 +258,13 @@ export const AutomationCreateWritePlanSchema = z.object({
   compensation_plan: z.record(z.unknown()).optional().nullable(),
 });
 
+export const AutomationApproveWritePlanSchema = z.object({
+  action: z.literal("approve_write_plan"),
+  plan_id: uuidSchema,
+  plan_hash: z.string().length(64, "Hash do plano deve ter exatamente 64 caracteres"),
+  decision_notes: z.string().optional(),
+});
+
 export const AutomationExecuteWritePlanSchema = z.object({
   action: z.literal("execute_write_plan"),
   plan_id: uuidSchema,
@@ -283,6 +295,7 @@ export const AutomationActionSchema = z.discriminatedUnion("action", [
   AutomationProcessJobSchema,
   AutomationCancelJobSchema,
   AutomationCreateWritePlanSchema,
+  AutomationApproveWritePlanSchema,
   AutomationExecuteWritePlanSchema,
   AutomationRecordAiUsageSchema,
   AutomationGetAiLimitsSchema,

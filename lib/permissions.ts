@@ -153,4 +153,22 @@ export function canApproveClientSuccess(role: string): boolean {
   return ["owner", "admin", "operations_lead", "commercial_lead"].includes(role);
 }
 
+/**
+ * 09. Validação centralizada de permissões para Integrações e Automação (Módulo 09)
+ * Operadores e visualizadores NUNCA possuem permissão para aprovar ou executar escritas externas.
+ * Apenas a liderança operacional (owner, admin, operations_lead) pode aprovar ou autorizar a execução.
+ */
+export function canApproveAutomationWrite(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+export function canExecuteAutomationWrite(role: string): boolean {
+  return ["owner", "admin", "operations_lead"].includes(role);
+}
+
+export function canManageAutomationQueue(role: string): boolean {
+  return ["owner", "admin", "operations_lead", "operator"].includes(role);
+}
+
+
 

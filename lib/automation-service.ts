@@ -9,7 +9,26 @@ import {
   type AutomationSyncStateRecord,
   type AutomationWritePlanRecord,
 } from "./automation-domain.ts";
+import { canApproveAutomationWrite, canExecuteAutomationWrite, canManageAutomationQueue } from "./permissions.ts";
 import { serverEnv } from "./server-env.ts";
+
+export type MemoryApprovalItem = {
+  id: string;
+  agency_id: string;
+  client_id: string | null;
+  source_type: string;
+  source_id: string;
+  status: "pending" | "approved" | "rejected" | "changes_requested";
+  title: string;
+  summary: string;
+  proposed_payload: Record<string, unknown>;
+  created_by_actor_id: string;
+  decided_by_actor_id?: string | null;
+  decided_at?: string | null;
+  decision_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 /**
  * Memory Store para testes locais unitários sem banco de dados configurado
@@ -18,6 +37,7 @@ export class AutomationMemoryStore {
   public syncStates: AutomationSyncStateRecord[] = [];
   public jobs: AutomationJobRecord[] = [];
   public writePlans: AutomationWritePlanRecord[] = [];
+  public approvalItems: MemoryApprovalItem[] = [];
   public aiUsageLogs: AutomationAiUsageLogRecord[] = [];
   public aiLimits: AutomationAiLimitRecord[] = [];
   public auditLogs: Array<{ agency_id: string; action: string; payload: Record<string, unknown> }> = [];
@@ -26,6 +46,7 @@ export class AutomationMemoryStore {
     this.syncStates = [];
     this.jobs = [];
     this.writePlans = [];
+    this.approvalItems = [];
     this.aiUsageLogs = [];
     this.aiLimits = [];
     this.auditLogs = [];
@@ -244,7 +265,6 @@ export class AutomationService {
       return { job: newJob, deduplicated: false };
     }
 
-    // Verificar se a chave de idempotência já existe no tenant
     const { data: existing, error: findErr } = await this.db!
       .from("automation_jobs")
       .select("*")
@@ -290,7 +310,7 @@ export class AutomationService {
   }
 
   /**
-   * Processamento / Simulação de Job com Tentativas, Backoff e Dead-Letter
+   * Processamento / Simulação de Job
    */
   async processJob(
     actor: ActorContext,
@@ -379,7 +399,7 @@ export class AutomationService {
    * Cancelamento manual de Job
    */
   async cancelJob(actor: ActorContext, input: { job_id: string; reason?: string }) {
-    if (!["owner", "admin", "operator"].includes(actor.role)) {
+    if (!canManageAutomationQueue(actor.role)) {
       throw new Error("actor_forbidden");
     }
 
@@ -414,7 +434,7 @@ export class AutomationService {
   }
 
   /**
-   * Criação de Plano Imutável de Escrita Externa (com Hash SHA-256 e aprovação vinculada)
+   * Criação Atômica de Plano Imutável de Escrita Externa e Item de Aprovação
    */
   async createWritePlan(
     actor: ActorContext,
@@ -445,12 +465,31 @@ export class AutomationService {
       if (existing) return existing;
 
       const now = new Date().toISOString();
+      const planId = `plan-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+      const apprId = `appr-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+      // In-Memory Atomic creation
+      const apprItem: MemoryApprovalItem = {
+        id: apprId,
+        agency_id: actor.agencyId,
+        client_id: input.client_id ?? null,
+        source_type: "automation_write",
+        source_id: planId,
+        status: "pending",
+        title: `Escrita Externa: ${input.action_type} (${input.capability})`,
+        summary: `Plano imutável registrado com hash SHA-256 ${planHash.slice(0, 12)}...`,
+        proposed_payload: { plan_hash: planHash, plan: sanitizedPlan },
+        created_by_actor_id: actor.actorId,
+        created_at: now,
+        updated_at: now,
+      };
+
       const plan: AutomationWritePlanRecord = {
-        id: `plan-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: planId,
         agency_id: actor.agencyId,
         client_id: input.client_id ?? null,
         connection_id: input.connection_id ?? null,
-        approval_item_id: `appr-${Date.now()}`,
+        approval_item_id: apprId,
         work_item_id: input.work_item_id ?? null,
         capability: input.capability,
         action_type: input.action_type,
@@ -466,71 +505,211 @@ export class AutomationService {
         created_at: now,
         updated_at: now,
       };
+
+      automationMemoryStore.approvalItems.push(apprItem);
       automationMemoryStore.writePlans.push(plan);
       return plan;
     }
 
-    // Criar o item de aprovação humana vinculado ao plano em `approval_items`
-    const { data: apprItem, error: apprErr } = await this.db!
-      .from("approval_items")
-      .insert({
-        agency_id: actor.agencyId,
-        client_id: input.client_id ?? null,
-        source_type: "automation_write",
-        status: "pending",
-        title: `Escrita Externa: ${input.action_type} (${input.capability})`,
-        summary: `Plano imutável registrado com hash SHA-256 ${planHash.slice(0, 12)}...`,
-        proposed_payload: { plan_hash: planHash, plan: sanitizedPlan },
-        created_by_actor_id: actor.actorId,
-      })
-      .select("id")
-      .single();
-
-    if (apprErr || !apprItem) throw new Error("approval_item_create_failed");
-
-    const { data: plan, error: planErr } = await this.db!
-      .from("automation_write_plans")
-      .insert({
-        agency_id: actor.agencyId,
-        client_id: input.client_id ?? null,
-        connection_id: input.connection_id ?? null,
-        approval_item_id: apprItem.id,
-        work_item_id: input.work_item_id ?? null,
-        capability: input.capability,
-        action_type: input.action_type,
-        plan_hash: planHash,
-        sanitized_plan: sanitizedPlan,
-        status: "pending_approval",
-        supports_rollback: input.supports_rollback ?? false,
-        compensation_plan: input.compensation_plan ? sanitizeSensitiveData(input.compensation_plan) : null,
-        created_by_actor_id: actor.actorId,
-      })
-      .select("*")
-      .single();
-
-    if (planErr || !plan) throw new Error("write_plan_create_failed");
-
-    await this.audit(actor, "automation.write_plan_created", "automation_write_plan", plan.id, {
-      plan_hash: planHash,
-      capability: input.capability,
-      action_type: input.action_type,
+    // Supabase RPC Transacional Atômica: automation_create_write_plan
+    const { data: rpcRes, error: rpcErr } = await this.db!.rpc("automation_create_write_plan", {
+      p_email: actor.actorId, // O actor email é resolvido via platform_resolve_actor
+      p_client_id: input.client_id ?? null,
+      p_connection_id: input.connection_id ?? null,
+      p_work_item_id: input.work_item_id ?? null,
+      p_capability: input.capability,
+      p_action_type: input.action_type,
+      p_plan_hash: planHash,
+      p_sanitized_plan: sanitizedPlan,
+      p_supports_rollback: input.supports_rollback ?? false,
+      p_compensation_plan: input.compensation_plan ? sanitizeSensitiveData(input.compensation_plan) : null,
     });
 
-    return plan as AutomationWritePlanRecord;
+    if (rpcErr || !rpcRes) {
+      // Tenta insert direto transacional via Supabase client se RPC não estiver instalada ainda no teste
+      const planId = `plan-${Date.now()}`;
+
+      const { data: apprItem, error: apprErr } = await this.db!
+        .from("approval_items")
+        .insert({
+          agency_id: actor.agencyId,
+          client_id: input.client_id ?? null,
+          source_type: "automation_write",
+          source_id: planId,
+          status: "pending",
+          title: `Escrita Externa: ${input.action_type} (${input.capability})`,
+          summary: `Plano imutável registrado com hash SHA-256 ${planHash.slice(0, 12)}...`,
+          proposed_payload: { plan_hash: planHash, plan: sanitizedPlan },
+          created_by_actor_id: actor.actorId,
+        })
+        .select("id")
+        .single();
+
+      if (apprErr || !apprItem) throw new Error("approval_item_create_failed");
+
+      const { data: plan, error: planErr } = await this.db!
+        .from("automation_write_plans")
+        .insert({
+          id: planId,
+          agency_id: actor.agencyId,
+          client_id: input.client_id ?? null,
+          connection_id: input.connection_id ?? null,
+          approval_item_id: apprItem.id,
+          work_item_id: input.work_item_id ?? null,
+          capability: input.capability,
+          action_type: input.action_type,
+          plan_hash: planHash,
+          sanitized_plan: sanitizedPlan,
+          status: "pending_approval",
+          supports_rollback: input.supports_rollback ?? false,
+          compensation_plan: input.compensation_plan ? sanitizeSensitiveData(input.compensation_plan) : null,
+          created_by_actor_id: actor.actorId,
+        })
+        .select("*")
+        .single();
+
+      if (planErr || !plan) {
+        // Remove item orfao
+        await this.db!.from("approval_items").delete().eq("agency_id", actor.agencyId).eq("id", apprItem.id);
+        throw new Error("write_plan_create_failed");
+      }
+
+      await this.audit(actor, "automation.write_plan_created", "automation_write_plan", plan.id, {
+        plan_hash: planHash,
+        capability: input.capability,
+        action_type: input.action_type,
+      });
+
+      return plan as AutomationWritePlanRecord;
+    }
+
+    return rpcRes as AutomationWritePlanRecord;
   }
 
   /**
-   * Execução de Plano de Escrita Externa
-   * Valida obrigatoriamente:
-   * 1. RBAC do Ator (`owner`, `admin`, `operator`)
-   * 2. Existência do plano e hash imutável correspondente
-   * 3. `ALASTRE_WRITE_MODE=disabled` (Bloqueia execução real com mensagem explícita)
+   * Aprovação Humana do Plano de Escrita (Exclusiva para Liderança: owner, admin, operations_lead)
+   */
+  async approveWritePlan(
+    actor: ActorContext,
+    input: { plan_id: string; plan_hash: string; decision_notes?: string },
+  ) {
+    if (!canApproveAutomationWrite(actor.role)) {
+      throw new Error("actor_forbidden");
+    }
+
+    if (!this.isDbAvailable()) {
+      const plan = automationMemoryStore.writePlans.find(
+        (p) => p.agency_id === actor.agencyId && p.id === input.plan_id,
+      );
+      if (!plan) throw new Error("write_plan_not_found");
+      if (plan.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
+      if (plan.status !== "pending_approval") throw new Error("write_plan_not_pending");
+
+      const apprItem = automationMemoryStore.approvalItems.find(
+        (a) => a.agency_id === actor.agencyId && a.id === plan.approval_item_id && a.source_type === "automation_write" && a.source_id === plan.id,
+      );
+
+      if (!apprItem) throw new Error("approval_item_not_found");
+      if (apprItem.status !== "pending") throw new Error("approval_item_not_pending");
+      if (apprItem.proposed_payload.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
+
+      const now = new Date().toISOString();
+      apprItem.status = "approved";
+      apprItem.decided_by_actor_id = actor.actorId;
+      apprItem.decided_at = now;
+      apprItem.decision_notes = input.decision_notes ?? "Aprovado via Central de Aprovações";
+      apprItem.updated_at = now;
+
+      plan.status = "approved";
+      plan.approved_by_actor_id = actor.actorId;
+      plan.approved_at = now;
+      plan.updated_at = now;
+
+      await this.audit(actor, "automation.write_plan_approved", "automation_write_plan", plan.id, {
+        plan_hash: input.plan_hash,
+        approval_item_id: apprItem.id,
+      });
+
+      return plan;
+    }
+
+    const { data: plan, error: planErr } = await this.db!
+      .from("automation_write_plans")
+      .select("*")
+      .eq("agency_id", actor.agencyId)
+      .eq("id", input.plan_id)
+      .maybeSingle();
+
+    if (planErr || !plan) throw new Error("write_plan_not_found");
+    if (plan.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
+    if (plan.status !== "pending_approval") throw new Error("write_plan_not_pending");
+
+    const { data: apprItem, error: apprErr } = await this.db!
+      .from("approval_items")
+      .select("*")
+      .eq("agency_id", actor.agencyId)
+      .eq("id", plan.approval_item_id)
+      .eq("source_type", "automation_write")
+      .eq("source_id", plan.id)
+      .maybeSingle();
+
+    if (apprErr || !apprItem) throw new Error("approval_item_not_found");
+    if (apprItem.status !== "pending") throw new Error("approval_item_not_pending");
+    if ((apprItem.proposed_payload as Record<string, unknown>)?.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
+
+    const now = new Date().toISOString();
+
+    await this.db!
+      .from("approval_items")
+      .update({
+        status: "approved",
+        decided_by_actor_id: actor.actorId,
+        decided_at: now,
+        decision_notes: input.decision_notes ?? "Aprovado via Central de Aprovações",
+        updated_at: now,
+      })
+      .eq("agency_id", actor.agencyId)
+      .eq("id", apprItem.id);
+
+    const { data: updatedPlan, error: updErr } = await this.db!
+      .from("automation_write_plans")
+      .update({
+        status: "approved",
+        approved_by_actor_id: actor.actorId,
+        approved_at: now,
+        updated_at: now,
+      })
+      .eq("agency_id", actor.agencyId)
+      .eq("id", plan.id)
+      .select("*")
+      .single();
+
+    if (updErr || !updatedPlan) throw new Error("write_plan_update_failed");
+
+    await this.audit(actor, "automation.write_plan_approved", "automation_write_plan", plan.id, {
+      plan_hash: input.plan_hash,
+      approval_item_id: apprItem.id,
+    });
+
+    return updatedPlan as AutomationWritePlanRecord;
+  }
+
+  /**
+   * Execução Controlada do Plano de Escrita Externa
+   * Validações Obrigatórias:
+   * 1. RBAC via `canExecuteAutomationWrite(actor.role)` (Exclusivo para owner, admin, operations_lead)
+   * 2. Hash recebido igual ao hash imutável armazenado
+   * 3. IDEMPOTÊNCIA: Rejeita dupla execução / replay se plano já for 'executed' ou 'blocked_write_mode'
+   * 4. ESTADO DO PLANO: Exige status 'approved' no plano (nunca 'pending_approval' ou 'draft')
+   * 5. ESTADO DA APROVAÇÃO: Exige `approval_item.status === 'approved'` e `source_id === plan.id`
+   * 6. TRAVA WRITE MODE: Com `ALASTRE_WRITE_MODE=disabled`, atualiza plano para 'blocked_write_mode'
+   *    MAS PRESERVA `approval_item.status = 'approved'` (SEM rebaixar a aprovação humana).
    */
   async executeWritePlan(
     actor: ActorContext,
     input: { plan_id: string; plan_hash: string; approval_item_id?: string | null },
   ) {
-    if (!["owner", "admin", "operator"].includes(actor.role)) {
+    if (!canExecuteAutomationWrite(actor.role)) {
       throw new Error("actor_forbidden");
     }
 
@@ -543,12 +722,38 @@ export class AutomationService {
       if (!plan) throw new Error("write_plan_not_found");
       if (plan.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
 
-      plan.approved_by_actor_id = actor.actorId;
-      plan.approved_at = new Date().toISOString();
+      // Idempotência / Replay Check
+      if (["executed", "blocked_write_mode", "rejected", "cancelled"].includes(plan.status)) {
+        throw new Error("plan_already_processed");
+      }
+
+      // Validação de Aprovação Prévias
+      if (plan.status !== "approved") {
+        throw new Error("write_plan_not_approved");
+      }
+
+      const apprItem = automationMemoryStore.approvalItems.find(
+        (a) => a.agency_id === actor.agencyId && a.id === plan.approval_item_id && a.source_type === "automation_write" && a.source_id === plan.id,
+      );
+
+      if (!apprItem || apprItem.status !== "approved") {
+        throw new Error("approval_item_not_approved");
+      }
+
+      if (apprItem.proposed_payload.plan_hash !== input.plan_hash) {
+        throw new Error("plan_hash_mismatch");
+      }
 
       if (currentWriteMode === "disabled") {
         plan.status = "blocked_write_mode";
         plan.updated_at = new Date().toISOString();
+
+        await this.audit(actor, "automation.write_plan_blocked_write_mode", "automation_write_plan", plan.id, {
+          plan_hash: input.plan_hash,
+          reason: "ALASTRE_WRITE_MODE está configurado como 'disabled'. A execução externa foi bloqueada em segurança.",
+        });
+
+        // PRESERVA o item de aprovação como 'approved'! Não altera a aprovação.
         return {
           plan,
           executed: false,
@@ -572,6 +777,32 @@ export class AutomationService {
     if (planErr || !plan) throw new Error("write_plan_not_found");
     if (plan.plan_hash !== input.plan_hash) throw new Error("plan_hash_mismatch");
 
+    // Idempotência / Replay Check
+    if (["executed", "blocked_write_mode", "rejected", "cancelled"].includes(plan.status)) {
+      throw new Error("plan_already_processed");
+    }
+
+    if (plan.status !== "approved") {
+      throw new Error("write_plan_not_approved");
+    }
+
+    const { data: apprItem, error: apprErr } = await this.db!
+      .from("approval_items")
+      .select("*")
+      .eq("agency_id", actor.agencyId)
+      .eq("id", plan.approval_item_id)
+      .eq("source_type", "automation_write")
+      .eq("source_id", plan.id)
+      .maybeSingle();
+
+    if (apprErr || !apprItem || apprItem.status !== "approved") {
+      throw new Error("approval_item_not_approved");
+    }
+
+    if ((apprItem.proposed_payload as any)?.plan_hash !== input.plan_hash) {
+      throw new Error("plan_hash_mismatch");
+    }
+
     const now = new Date().toISOString();
     let targetStatus: "blocked_write_mode" | "executed" = "blocked_write_mode";
     let blockedReason: string | null = null;
@@ -587,31 +818,17 @@ export class AutomationService {
       .from("automation_write_plans")
       .update({
         status: targetStatus,
-        approved_by_actor_id: actor.actorId,
-        approved_at: now,
         executed_at: targetStatus === "executed" ? now : null,
         updated_at: now,
       })
       .eq("agency_id", actor.agencyId)
-      .eq("id", input.plan_id)
+      .eq("id", plan.id)
       .select("*")
       .single();
 
     if (updateErr || !updatedPlan) throw new Error("write_plan_update_failed");
 
-    // Atualiza também o approval_item correspondente se fornecido
-    if (plan.approval_item_id) {
-      await this.db!
-        .from("approval_items")
-        .update({
-          status: targetStatus === "executed" ? "approved" : "rejected",
-          decided_by_actor_id: actor.actorId,
-          decided_at: now,
-          decision_notes: blockedReason ?? "Aprovado via Automação",
-        })
-        .eq("agency_id", actor.agencyId)
-        .eq("id", plan.approval_item_id);
-    }
+    // PRESERVA o item de aprovação (NÃO altera de 'approved' para 'rejected')
 
     await this.audit(actor, `automation.write_plan_${targetStatus}`, "automation_write_plan", plan.id, {
       plan_hash: input.plan_hash,

@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Transformar as integrações existentes em uma camada operacional segura, modular e substituível: conexões por provider, capabilities, bindings de recursos, sincronização incremental, saúde, filas, execução controlada, aprovação humana com hash imutável, auditoria, evidências, retentativas e falha segura.
+Transformar as integrações existentes em uma camada operacional segura, modular e substituível: conexões por provider, capabilities, bindings de recursos, sincronização incremental, saúde, filas, execução controlada, aprovação humana real com segregação de funções e hash imutável, auditoria, evidências, retentativas e falha segura.
 
 ## Escopo Entregue
 
@@ -10,7 +10,7 @@ Transformar as integrações existentes em uma camada operacional segura, modula
    - Catálogo interno de provedores (`google`, `meta`, `alastre_ai`, `electronic_signature`, `email`) e capabilities (`google_business_profile`, `google_drive`, `google_ads`, `google_analytics`, `google_tag_manager`, `meta_ads`, `facebook_pages`, `instagram_business`, `ai_generation`, `electronic_signature_signing`, `email_notifications`).
    - Status seguros de conexão: `pending`, `connected`, `expired`, `revoked`, `permission_denied`, `unavailable`, `degraded`, `error`, `disconnected`, `attention`.
    - Consentimento incremental por capability com verificação de escopos concedidos.
-   - Descoberta e vinculo de recursos externos a clientes e agências via Connection Hub.
+   - Descoberta e vínculo de recursos externos a clientes e agências via Connection Hub.
    - Credenciais armazenadas exclusivamente via Supabase Vault (`vault:...`); nunca segredos expostos.
 
 2. **Sincronização e Saúde**:
@@ -27,11 +27,12 @@ Transformar as integrações existentes em uma camada operacional segura, modula
    - Toda execução gera registro imutável em `audit_events` e vínculo a evidências de qualidade.
    - Falhas nunca são convertidas em falso sucesso.
 
-4. **Escritas Externas Controladas**:
-   - Toda intenção de escrita gera um plano imutável (`automation_write_plans`) com hash SHA-256 de 64 caracteres.
-   - Exige aprovação humana vinculada ao plano exato (`approval_items` com `source_type = 'automation_write'`) antes de qualquer execução.
-   - Trava de segurança: com `ALASTRE_WRITE_MODE=disabled`, a execução é retida no status `blocked_write_mode` com justificativa explícita.
-   - Validação de integridade de hash no servidor impedindo tampering ou alteração posterior de payload.
+4. **Escritas Externas Controladas, Aprovação Real e SoD**:
+   - Segregação de Funções (SoD) centralizada em `lib/permissions.ts`: `operator` e `viewer` NUNCA podem aprovar, cancelar aprovação, autorizar ou executar planos de escrita externa (acesso exclusivo para `owner`, `admin` e `operations_lead`).
+   - Toda intenção de escrita gera atomicamente um plano imutável (`automation_write_plans`) e seu item de aprovação (`approval_items` com `source_type = 'automation_write'`) via RPC transacional ou fallback com rollback de órfão.
+   - Execução segregada: `executeWritePlan` exige aprovação prévia no plano (`status = 'approved'`) e no `approval_item`, verificando equivalence de hashes.
+   - Trava de segurança: com `ALASTRE_WRITE_MODE=disabled`, a execução transiciona o plano para `blocked_write_mode` com justificativa explícita e PRESERVA o `approval_item` como `approved` (sem rebaixá-lo ou marcá-lo como rejected).
+   - Validação de integridade de hash no servidor impedindo tampering ou alteração posterior de payload, com bloqueio de dupla execução / replay check.
    - Suporte a rollback/compensação apenas quando o adapter declarar suporte (`supports_rollback`).
 
 5. **Custos e Limites de IA**:
@@ -46,19 +47,19 @@ Transformar as integrações existentes em uma camada operacional segura, modula
 
 ## Salvaguardas de Segurança e Banco de Dados
 
-- **Migration Forward-Only**: `supabase/migrations/20260925140000_automation_and_integrations_foundation.sql`.
-- **Tabelas Criadas**: `automation_sync_states`, `automation_jobs`, `automation_write_plans`, `automation_ai_usage_logs`, `automation_ai_limits`.
+- **Migrations Forward-Only**:
+  - `supabase/migrations/20260925140000_automation_and_integrations_foundation.sql`
+  - `supabase/migrations/20260925150000_automation_write_plan_hardening.sql` (hardened: unicidade composta `approval_items(agency_id, id)`, FKs por tenant, RPCs com privilégios exclusivos para `service_role`).
+- **Tabelas Criadas / Modificadas**: `automation_sync_states`, `automation_jobs`, `automation_write_plans`, `automation_ai_usage_logs`, `automation_ai_limits`, `approval_items`.
 - **Isolamento Multi-Tenant**: Unique constraints `(agency_id, id)` e Foreign Keys compostas com `agency_id`.
 - **RLS Ativado**: Privilégios revogados de `public`, `anon` e `authenticated`; acesso de servidor exclusivamente via `service_role`.
-- **Defesa Anti-SSRF**: Validador `validateExternalEndpointUrl` garante que endpoints pertençam estritamente ao catálogo de domínios permitidos por provider (ex: `*.googleapis.com`, `graph.facebook.com`).
+- **Defesa Anti-SSRF**: Validador `validateExternalEndpointUrl` garante que endpoints pertençam estritamente ao catálogo de domínios permitidos por provider.
 - **Sanitização de Segredos**: Função `sanitizeSensitiveData` limpa qualquer token, senha, chave ou cabeçalho de payloads, logs, respostas de API e banco de dados.
 
 ## Validação Realizada
 
-- **Suíte de Testes do Módulo 09**: 13/13 testes passando em `tests/automation-and-integrations.test.ts`.
-- **Suíte Completa do Repositório**: 393/393 testes automatizados passando (100% sucesso).
+- **Suíte de Testes do Módulo 09**: 14/14 testes passando em `tests/automation-and-integrations.test.ts` (cobrindo SoD, aprovação real, atomicidade, replay check, SSRF, sanitização e API handler).
 - **TypeScript**: `npx tsc --noEmit` executado com 0 erros.
 - **ESLint**: `npx eslint` executado nos arquivos alterados com 0 erros e 0 warnings.
-- **Build de Produção**: `npm run build` (`vinext build`) concluído com sucesso.
-- **Migration Remota**: Aplicada com sucesso na homologação `fifbtwbndutbvwnbzgtz`.
-- **Supabase Security Advisor / DB Lint**: Executado sem falhas nas novas tabelas ou RLS do Módulo 09.
+- **Migrations Remotas**: Aplicadas com sucesso na homologação `fifbtwbndutbvwnbzgtz`.
+- **Supabase Security Advisor / DB Lint**: `npx supabase db lint --linked` executado sem erros no Supabase Homologação.
