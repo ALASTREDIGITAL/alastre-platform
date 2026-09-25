@@ -48,6 +48,7 @@ import { ImageGeotagModule } from "./image-geotag-module";
 import { ClientJourneyModule } from "./client-journey-module";
 import { ClientOnboardingModule } from "./client-onboarding-module";
 import { OperationsEngineModule } from "./operations-engine-module";
+import { QualityModuleApp } from "./quality-module";
 import { ModulePlaceholder } from "@/components/module-placeholder";
 import { placeholderConfigs } from "@/components/placeholder-configs";
 import { useAuth } from "@/lib/auth-context";
@@ -55,6 +56,7 @@ import { AgencyOnboardingModal } from "@/components/agency-onboarding-modal";
 export type View =
   | "overview"
   | "operations-engine"
+  | "quality"
   | "product-factory"
   | "clients"
   | "client-journey"
@@ -80,6 +82,7 @@ export type View =
 const views: View[] = [
   "overview",
   "operations-engine",
+  "quality",
   "product-factory",
   "clients",
   "client-journey",
@@ -118,6 +121,12 @@ const groups: Array<{ label: string; items: NavItem[] }> = [
         label: "Motor de Operações",
         icon: WorkflowIcon,
         view: "operations-engine",
+        featured: true,
+      },
+      {
+        label: "Qualidade e Evidências",
+        icon: ShieldCheck,
+        view: "quality",
         featured: true,
       },
       { label: "Aprovações", icon: CheckCircle2, view: "approvals" },
@@ -432,6 +441,8 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
       />
     ) : activeView === "operations-engine" ? (
       <OperationsEngineModule onNavigate={navigateToView} />
+    ) : activeView === "quality" ? (
+      <QualityModuleApp onNavigate={(view) => navigateToView(view as View)} />
     ) : activeView === "costs" ? (
       <OperationsModule mode="costs" />
     ) : activeView === "audit" ? (
