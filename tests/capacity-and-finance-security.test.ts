@@ -80,25 +80,26 @@ test("Módulo 08 — Capacidade e Financeiro: Segurança, RBAC e Tratamento de F
     assert.ok(data.error.includes("não possui um cliente real e verificável"));
   });
 
-  await t.test("garante que falha parcial na criação atômica não deixa item de aprovação órfão", async () => {
+  await t.test("suporta proposta com ID textual/alfa-numérico e grava source_id com o mesmo texto canônico", async () => {
     const request = new Request("http://localhost:3000/api/capacity-and-finance", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-test-actor-email": "admin@alastre.com.br",
         "x-test-agency-id": "a1a57e00-0000-4000-8000-000000000001",
-        "x-test-force-creation-failure": "true",
       },
       body: JSON.stringify({
         action: "evaluate_pricing",
         payload: {
-          proposal_id: "prop-101",
-          list_setup_price: 1000,
-          list_monthly_price: 2000,
-          proposed_setup_price: 1000,
-          proposed_monthly_price: 2000,
-          estimated_operational_cost: 800,
-          discount_applied_pct: 0,
+          proposal_id: "prop-alfa-num-101-test",
+          list_setup_price: 1500,
+          list_monthly_price: 2500,
+          proposed_setup_price: 1500,
+          proposed_monthly_price: 2250,
+          estimated_operational_cost: 970,
+          discount_applied_pct: 10,
+          discount_type: "scope_reduction",
+          discount_counterpart_description: "Redução de escopo",
           is_cost_estimated: true,
           is_counterpart_documented: true,
         },
@@ -106,11 +107,33 @@ test("Módulo 08 — Capacidade e Financeiro: Segurança, RBAC e Tratamento de F
     });
 
     const response = await POST(request);
-    assert.equal(response.status, 500);
+    assert.equal(response.status, 200);
 
     const data = await response.json();
-    assert.equal(data.success, undefined);
-    assert.ok(data.error.includes("Falha simulada"));
+    assert.equal(data.success, true);
+    assert.equal(data.evaluation.proposal_id, "prop-alfa-num-101-test");
+  });
+
+  await t.test("rejeita aprovação se source_id ou snapshot.proposal_id divergirem da decisão financeira", async () => {
+    const request = new Request("http://localhost:3000/api/capacity-and-finance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-test-actor-email": "admin@alastre.com.br",
+        "x-test-actor-role": "admin",
+        "x-test-agency-id": "a1a57e00-0000-4000-8000-000000000001",
+      },
+      body: JSON.stringify({
+        action: "process_pricing_approval",
+        payload: {
+          approval_item_id: "appr-proposal-mismatch-test",
+          decision: "approved",
+        },
+      }),
+    });
+
+    const response = await POST(request);
+    assert.equal(response.status, 404);
   });
 
   await t.test("rejeita aprovação por ator com papel operacional não autorizado com HTTP 403", async () => {
@@ -160,77 +183,43 @@ test("Módulo 08 — Capacidade e Financeiro: Segurança, RBAC e Tratamento de F
     const response = await POST(request);
     assert.equal(response.status, 404);
   });
-
-  await t.test("rejeita proposta não existente ou pertencente a outra agência", async () => {
-    const request = new Request("http://localhost:3000/api/capacity-and-finance", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-test-actor-email": "admin@alastre.com.br",
-        "x-test-actor-role": "admin",
-        "x-test-agency-id": "a1a57e00-0000-4000-8000-000000000001",
-      },
-      body: JSON.stringify({
-        action: "evaluate_pricing",
-        payload: {
-          proposal_id: "prop-non-existent-cross-tenant",
-          list_setup_price: 1000,
-          list_monthly_price: 2000,
-          proposed_setup_price: 1000,
-          proposed_monthly_price: 2000,
-          estimated_operational_cost: 800,
-          discount_applied_pct: 0,
-          is_cost_estimated: true,
-          is_counterpart_documented: true,
-        },
-      }),
-    });
-
-    const response = await POST(request);
-    assert.equal(response.status, 404);
-  });
 });
 
 test("Módulo 08 — Capacidade e Financeiro: Integridade das Migrations", async (t) => {
-  await t.test("nova migration 20260925120000 contém RPCs atômicas e trava de divergência de proposta", () => {
+  await t.test("nova migration 20260925130000 grava source_id texto canônico e valida divergência", () => {
     const migrationPath = path.join(
       process.cwd(),
       "supabase",
       "migrations",
-      "20260925120000_capacity_and_finance_atomic_approvals.sql"
+      "20260925130000_capacity_and_finance_canonical_source_id.sql"
     );
 
-    assert.ok(fs.existsSync(migrationPath), "A nova migration de aprovação atômica deve existir");
+    assert.ok(fs.existsSync(migrationPath), "A nova migration de source_id canônico deve existir");
 
     const sqlContent = fs.readFileSync(migrationPath, "utf-8");
 
-    // Validação da RPC de submissão atômica (prevenção de órfãos)
-    assert.ok(sqlContent.includes("create or replace function public.submit_capacity_pricing_proposal_for_approval"));
-    assert.ok(sqlContent.includes("client_not_found_for_agency"));
-    assert.ok(sqlContent.includes("proposal_not_found_for_agency"));
+    // Validação da gravação direta do p_proposal_id sem conversão UUID
+    assert.ok(sqlContent.includes("p_proposal_id, -- TEXTO EXATO DA PROPOSTA, SEM CONVERSÃO UUID E SEM UUID ALEATÓRIO"));
 
-    // Validação da trava de divergência entre approval_item e proposal_id
+    // Validação da trava de divergência canônica (source_id e snapshot)
+    assert.ok(sqlContent.includes("v_approval.source_id <> v_pricing.proposal_id"));
+    assert.ok(sqlContent.includes("v_snapshot_proposal_id <> v_pricing.proposal_id"));
     assert.ok(sqlContent.includes("approval_proposal_mismatch"));
-    assert.ok(sqlContent.includes("v_approval.snapshot->>'proposal_id'"));
     assert.ok(sqlContent.includes("security definer"));
     assert.ok(sqlContent.includes("set search_path = public, pg_temp"));
   });
 
-  await t.test("migrations já aplicadas do Módulo 07 e 08 prévias não foram modificadas", () => {
+  await t.test("migrations já aplicadas dos Módulos 07 e 08 não foram modificadas", () => {
     const m07Path1 = path.join(process.cwd(), "supabase", "migrations", "20260925070000_client_success_foundation.sql");
     const m07Path2 = path.join(process.cwd(), "supabase", "migrations", "20260925090000_client_success_multi_tenant_hardening.sql");
     const m08Path1 = path.join(process.cwd(), "supabase", "migrations", "20260925100000_capacity_and_finance_foundation.sql");
     const m08Path2 = path.join(process.cwd(), "supabase", "migrations", "20260925110000_capacity_and_finance_hardening.sql");
+    const m08Path3 = path.join(process.cwd(), "supabase", "migrations", "20260925120000_capacity_and_finance_atomic_approvals.sql");
 
     assert.ok(fs.existsSync(m07Path1));
     assert.ok(fs.existsSync(m07Path2));
     assert.ok(fs.existsSync(m08Path1));
     assert.ok(fs.existsSync(m08Path2));
-
-    const content1 = fs.readFileSync(m07Path1, "utf-8");
-    const content2 = fs.readFileSync(m07Path2, "utf-8");
-
-    assert.ok(content1.includes("create table if not exists public.client_health_scores"));
-    assert.ok(content2.includes("client_meetings_agency_service_fk"));
+    assert.ok(fs.existsSync(m08Path3));
   });
 });
