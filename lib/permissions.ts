@@ -18,6 +18,10 @@ export function canApproveProduct(role: string): boolean {
   return ["owner", "admin", "operations_lead"].includes(role);
 }
 
+export function canApproveCapacityPricing(role: string): boolean {
+  return ["owner", "admin", "operations_lead", "commercial_lead"].includes(role);
+}
+
 /**
  * 02. Validação centralizada de permissões para Comercial & CRM (Módulo 02)
  */
