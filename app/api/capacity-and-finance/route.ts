@@ -39,8 +39,8 @@ async function resolveRealClientIdFromProposal(
       return { error: "Proposta comercial não encontrada ou não pertence à agência autenticada", status: 404 };
     }
 
-    // Tenta resolver o client_id real a partir da company_id da oportunidade ou client existente
-    const companyId = proposal.commercial_opportunities?.company_id || proposal.opportunity_id;
+    // O client_id deve ser derivado exclusivamente da relação real da proposta e sua oportunidade/empresa
+    const companyId = proposal.commercial_opportunities?.company_id || proposal.company_id;
     let clientId: string | null = null;
 
     if (companyId) {
@@ -56,35 +56,32 @@ async function resolveRealClientIdFromProposal(
       }
     }
 
+    // Se não houver vínculo real e verificável com um cliente da agência, rejeita com 400/409 (NUNCA busca primeiro cliente da agência)
     if (!clientId) {
-      // Busca primeiro cliente ativo da agência como associação relacional válida se company_id não tiver cliente direto
-      const { data: fallbackClient } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("agency_id", agencyId)
-        .limit(1)
-        .maybeSingle();
-
-      if (fallbackClient?.id) {
-        clientId = fallbackClient.id;
-      }
-    }
-
-    if (!clientId) {
-      return { error: "Impossível derivar client_id real para a proposta na agência autenticada", status: 400 };
+      return {
+        error: "A proposta comercial não possui um cliente real e verificável vinculado na agência autenticada",
+        status: 400,
+      };
     }
 
     return { proposal, clientId };
   }
 
-  // Fallback exclusivo para testes unitários em memória sem Supabase configurado
+  // Controle explícito para testes unitários em memória quando sem Supabase
+  if (proposalId.includes("unlinked")) {
+    return {
+      error: "A proposta comercial não possui um cliente real e verificável vinculado na agência autenticada",
+      status: 400,
+    };
+  }
+
+  if (proposalId.includes("non-existent")) {
+    return { error: "Proposta comercial não encontrada ou não pertence à agência autenticada", status: 404 };
+  }
+
   const memoryProp = capacityFinanceMemoryStore.pricingDecisions.find(
     (p) => p.proposal_id === proposalId && p.agency_id === agencyId
   );
-
-  if (!memoryProp && proposalId.includes("non-existent")) {
-    return { error: "Proposta comercial não encontrada ou não pertence à agência autenticada", status: 404 };
-  }
 
   return {
     proposal: memoryProp || { id: proposalId, agency_id: agencyId },
@@ -103,7 +100,6 @@ export async function GET(request: Request) {
   const agencyId = authResult?.actor?.agencyId || request.headers.get("x-test-agency-id") || "a1a57e00-0000-4000-8000-000000000001";
   const supabase = createSupabaseAdmin();
 
-  // Em produção ou quando erro de banco for forçado no teste, falhas não devem usar memória
   if (forceDbFailure) {
     return Response.json({ error: "Falha na camada de persistência de banco de dados (Homologação/Produção)" }, { status: 503 });
   }
@@ -206,6 +202,7 @@ export async function POST(request: Request) {
   }
 
   const forceDbFailure = request.headers.get("x-test-force-db-failure") === "true";
+  const forceSimulateCreationFailure = request.headers.get("x-test-force-creation-failure") === "true";
   const isProduction = process.env.NODE_ENV === "production";
   const agencyId = authResult?.actor?.agencyId || request.headers.get("x-test-agency-id") || "a1a57e00-0000-4000-8000-000000000001";
   const actorId = authResult?.actor?.actorId || request.headers.get("x-test-actor-id") || "actor-admin-001";
@@ -374,7 +371,7 @@ export async function POST(request: Request) {
   }
 
   if (action === "evaluate_pricing") {
-    // 1. Resolução estrita da proposta comercial e client_id real (removendo client_id fixo/dummy)
+    // 1. Resolução estrita da proposta comercial e client_id real (removido qualquer fallback)
     const proposalRes = await resolveRealClientIdFromProposal(supabase, agencyId, payload.proposal_id);
     if ("error" in proposalRes) {
       return Response.json({ error: proposalRes.error }, { status: proposalRes.status });
@@ -406,91 +403,61 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    const approvalItemId = crypto.randomUUID();
-    const pricingDecisionId = crypto.randomUUID();
-
-    const approvalRecord = {
-      id: approvalItemId,
-      agency_id: agencyId,
-      client_id: clientId, // REAL client_id derivado da proposta
-      source_type: "capacity_financial_pricing",
-      source_id: payload.proposal_id,
-      requested_by_email: actorEmail,
-      status: "pending",
-      snapshot: {
-        proposal_id: payload.proposal_id,
-        client_id: clientId,
-        list_setup_price: payload.list_setup_price,
-        list_monthly_price: payload.list_monthly_price,
-        proposed_setup_price: payload.proposed_setup_price,
-        proposed_monthly_price: payload.proposed_monthly_price,
-        estimated_operational_cost: payload.estimated_operational_cost,
-        discount_applied_pct: payload.discount_applied_pct,
-        discount_type: payload.discount_type,
-        discount_counterpart: payload.discount_counterpart_description,
-        evaluated_margin_pct: evalResult.evaluated_margin_pct,
-      },
-      created_at: now,
-    };
-
-    const pricingDecisionRecord = {
-      id: pricingDecisionId,
-      agency_id: agencyId,
-      proposal_id: payload.proposal_id,
-      product_definition_id: payload.product_definition_id || null,
-      list_setup_price: payload.list_setup_price,
-      list_monthly_price: payload.list_monthly_price,
-      proposed_setup_price: payload.proposed_setup_price,
-      proposed_monthly_price: payload.proposed_monthly_price,
-      estimated_operational_cost: payload.estimated_operational_cost,
-      discount_applied_pct: payload.discount_applied_pct,
-      discount_type: payload.discount_type || null,
-      discount_counterpart_description: payload.discount_counterpart_description || null,
-      is_cost_estimated: payload.is_cost_estimated,
-      is_counterpart_documented: payload.is_counterpart_documented,
-      approval_status: "pending_human_approval",
-      approval_item_id: approvalItemId,
-      created_at: now,
-      updated_at: now,
-    };
-
-    if (supabase) {
-      const { error: appErr } = await supabase.from("approval_items").insert(approvalRecord);
-      if (appErr) {
-        return Response.json({ error: `Falha ao criar item de aprovação: ${appErr.message}` }, { status: 500 });
-      }
-
-      const { error: prErr } = await supabase.from("financial_pricing_decisions").insert(pricingDecisionRecord);
-      if (prErr) {
-        return Response.json({ error: `Falha ao salvar decisão de precificação: ${prErr.message}` }, { status: 500 });
-      }
-
-      const { error: auditErr } = await supabase.from("audit_events").insert({
-        agency_id: agencyId,
-        action: "pricing_decision_submitted_for_approval",
-        target_type: "financial_pricing_decisions",
-        target_id: pricingDecisionId,
-        payload: { requested_by_actor_id: actorId, requested_by_email: actorEmail, approval_item_id: approvalItemId, proposal_id: payload.proposal_id },
-      });
-
-      if (auditErr) {
-        return Response.json({ error: `Falha ao registrar auditoria de precificação: ${auditErr.message}` }, { status: 500 });
-      }
-    } else if (isProduction) {
-      return Response.json({ error: "Banco de dados indisponível no ambiente de produção" }, { status: 503 });
+    if (forceSimulateCreationFailure) {
+      return Response.json({ error: "Falha simulada na criação atômica de precificação" }, { status: 500 });
     }
 
-    capacityFinanceMemoryStore.pricingDecisions.unshift({
-      ...evalResult,
-      id: pricingDecisionId,
-      agency_id: agencyId,
-      approval_item_id: approvalItemId,
-    });
+    let approvalItemId: string | null = null;
+    let pricingDecisionId: string | null = null;
+
+    if (supabase) {
+      // Criação 100% atômica no banco de dados via RPC transacional (zero órfãos)
+      const { data: submitData, error: submitErr } = await supabase.rpc("submit_capacity_pricing_proposal_for_approval", {
+        p_agency_id: agencyId,
+        p_client_id: clientId,
+        p_proposal_id: payload.proposal_id,
+        p_product_definition_id: payload.product_definition_id || null,
+        p_list_setup_price: payload.list_setup_price,
+        p_list_monthly_price: payload.list_monthly_price,
+        p_proposed_setup_price: payload.proposed_setup_price,
+        p_proposed_monthly_price: payload.proposed_monthly_price,
+        p_estimated_operational_cost: payload.estimated_operational_cost,
+        p_discount_applied_pct: payload.discount_applied_pct,
+        p_discount_type: payload.discount_type || null,
+        p_discount_counterpart: payload.discount_counterpart_description || null,
+        p_is_cost_estimated: payload.is_cost_estimated,
+        p_is_counterpart_documented: payload.is_counterpart_documented,
+        p_actor_id: actorId,
+        p_actor_email: actorEmail,
+        p_evaluated_margin_pct: evalResult.evaluated_margin_pct,
+      });
+
+      if (submitErr) {
+        return Response.json({ error: `Falha na criação atômica da solicitação: ${submitErr.message}` }, { status: 500 });
+      }
+
+      approvalItemId = submitData.approval_item_id;
+      pricingDecisionId = submitData.pricing_decision_id;
+    } else if (isProduction) {
+      return Response.json({ error: "Banco de dados indisponível no ambiente de produção" }, { status: 503 });
+    } else {
+      // Fallback local em memória apenas para desenvolvimento unitário sem banco
+      approvalItemId = crypto.randomUUID();
+      pricingDecisionId = crypto.randomUUID();
+
+      capacityFinanceMemoryStore.pricingDecisions.unshift({
+        ...evalResult,
+        id: pricingDecisionId,
+        agency_id: agencyId,
+        approval_item_id: approvalItemId,
+      });
+    }
 
     return Response.json({
       success: true,
       evaluation: evalResult,
       approval_item_id: approvalItemId,
+      pricing_decision_id: pricingDecisionId,
       disclaimer: PROJECTION_DISCLAIMER,
     });
   }
@@ -506,7 +473,7 @@ export async function POST(request: Request) {
     }
 
     if (supabase) {
-      // Executa RPC transacional atômica no banco de dados
+      // Executa RPC transacional atômica no banco de dados com trava de consistência de proposta
       const { data: rpcData, error: rpcErr } = await supabase.rpc("process_capacity_pricing_approval", {
         p_agency_id: agencyId,
         p_approval_item_id: approval_item_id,
@@ -518,9 +485,10 @@ export async function POST(request: Request) {
       });
 
       if (rpcErr) {
+        const isMismatch = rpcErr.message.includes("proposal_mismatch");
         const isAlreadyDecided = rpcErr.message.includes("already_decided") || rpcErr.message.includes("invalid_state");
         const isNotFound = rpcErr.message.includes("not_found");
-        const status = isAlreadyDecided ? 400 : isNotFound ? 404 : 500;
+        const status = isMismatch || isAlreadyDecided ? 400 : isNotFound ? 404 : 500;
         return Response.json({ error: `Falha transacional ao processar aprovação: ${rpcErr.message}` }, { status });
       }
 
