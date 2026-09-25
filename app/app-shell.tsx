@@ -51,6 +51,7 @@ import { ClientOnboardingModule } from "./client-onboarding-module";
 import { OperationsEngineModule } from "./operations-engine-module";
 import { QualityModuleApp } from "./quality-module";
 import { ClientSuccessModule } from "./client-success-module";
+import { CapacityFinanceModule } from "./capacity-and-finance-module";
 import { ModulePlaceholder } from "@/components/module-placeholder";
 import { placeholderConfigs } from "@/components/placeholder-configs";
 import { useAuth } from "@/lib/auth-context";
@@ -439,11 +440,7 @@ export function AppShell({ userName, initialView }: { userName: string; initialV
     ) : activeView === "commercial" ? (
       <CommercialModule onNavigate={navigateToView} />
     ) : activeView === "finance" ? (
-      <ModulePlaceholder
-        config={placeholderConfigs.finance}
-        icon={CircleDollarSign}
-        onNavigate={(view) => navigateToView(view as View)}
-      />
+      <CapacityFinanceModule onNavigate={(view) => navigateToView(view as View)} selectedClientId={selectedClient} />
     ) : activeView === "operations-engine" ? (
       <OperationsEngineModule />
     ) : activeView === "quality" ? (
