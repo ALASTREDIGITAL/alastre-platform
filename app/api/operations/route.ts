@@ -546,6 +546,7 @@ export async function POST(req: Request) {
             .from("workflows")
             .select("total_estimated_minutes")
             .eq("id", payload.workflow_id)
+            .eq("agency_id", agencyId)
             .single();
           if (currentWf) {
             await admin
@@ -554,7 +555,8 @@ export async function POST(req: Request) {
                 total_estimated_minutes: (currentWf.total_estimated_minutes || 0) + payload.estimated_minutes,
                 updated_at: new Date().toISOString(),
               })
-              .eq("id", payload.workflow_id);
+              .eq("id", payload.workflow_id)
+              .eq("agency_id", agencyId);
           }
 
           await admin.from("audit_events").insert({

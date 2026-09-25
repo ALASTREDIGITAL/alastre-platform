@@ -25,7 +25,6 @@ import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
 import { IntegrationState } from "@/components/platform-state";
 import { useAuth } from "@/lib/auth-context";
-import type { View } from "./app-shell";
 import {
   calculateCapacityMetrics,
   categorizeOperationalQueues,
@@ -39,9 +38,7 @@ import {
 
 type TabId = "queues" | "workflows" | "kanban" | "capacity" | "templates";
 
-export function OperationsEngineModule(_props?: {
-  onNavigate?: (view: View) => void;
-}) {
+export function OperationsEngineModule() {
   useAuth();
   const [activeTab, setActiveTab] = useState<TabId>("queues");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
@@ -1200,7 +1197,7 @@ export function OperationsEngineModule(_props?: {
                   <option value="">Nenhum (Workflow Manual em Branco)</option>
                   {templates.map((tpl) => (
                     <option key={tpl.id} value={tpl.id}>
-                      {tpl.name} ({tpl.tasks?.length || 0} tarefas)
+                      {tpl.name} ({tpl.definition?.length || 0} tarefas)
                     </option>
                   ))}
                 </select>
