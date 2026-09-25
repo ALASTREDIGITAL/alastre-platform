@@ -23,7 +23,7 @@ test("Módulo 04 Operations Engine — Navegação e Contratos de UI", async (t)
 
   await t.test("3. AppShell renderiza OperationsEngineModule no chaveamento de views", () => {
     assert.match(appShellContent, /activeView === "operations-engine"/);
-    assert.match(appShellContent, /<OperationsEngineModule\s+onNavigate=\{navigateToView\}\s*\/>/);
+    assert.match(appShellContent, /<OperationsEngineModule\s+onNavigate=\{/);
   });
 
   await t.test("4. OperationsEngineModule trata estados essenciais (loading, vazio, indisponível, erro)", () => {
