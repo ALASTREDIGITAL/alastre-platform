@@ -272,6 +272,20 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Build de Produção (`npx vinext build`): Concluído com sucesso (5 ambientes compilados).
   - Decisão Final: **`GO`** (com ressalvas funcionais mantidas: `ALASTRE_WRITE_MODE=disabled` e provedor Google em `pending_provider_approval`).
 
+## Marco de Entrega — Etapa 12: Ativação Controlada de Produção (2026-09-26)
+
+- **Resultado do Gate de Deploy**: **`BLOQUEADO`** (Parada preventiva antes do deploy conforme diretrizes da Etapa 12).
+- **Motivo do Bloqueio**: Ausência do destino de hospedagem de produção, projeto Supabase de produção e cofre de variáveis de produção. Em cumprimento estrito das regras de segurança, nenhum valor ou ambiente foi inventado.
+- **Validação Técnica do Código**:
+  - `npm test`: **404/404 testes passando (100% sucesso)**.
+  - TypeScript (`npx tsc --noEmit`): **0 erros de compilação**.
+  - ESLint (`npx eslint`): **0 erros**.
+  - Build de Produção (`npm run build` / `vinext build`): Concluído com sucesso (5 ambientes compilados).
+  - Auditoria de Dependências (`npm audit --omit=dev`): **0 vulnerabilidades em dependências de produção**.
+- **Segurança & Trava de Escrita**: `ALASTRE_WRITE_MODE` permanece estritamente em `disabled`. Provedor Google permanece em `pending_provider_approval`. Nenhuma chamada externa ou efeito colateral foi executado.
+- **Documentação de Release**: Registrada em `docs/modules/12-controlled-production-activation.md`.
+
+
 
 
 
