@@ -241,11 +241,12 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
 
 ## Marco de Entrega — Etapa 11: Segurança, Operação e Preparação de Release (2026-09-26)
 
-- **Exercício Real de Restauração Isolada (Supabase PITR/Restore)**:
-  - **Projeto Isolado Criado**: `alastre-platform-restore-test-20260926` (ref `dagnthlcpsrrwjpwyxei`, região `sa-east-1`, status `ACTIVE_HEALTHY`).
-  - **Resultado**: **`NO-GO`**.
-  - **Causa Raiz Identificada**: A aplicação das migrations de fundação via `supabase db push` foi interrompida na migration `20260925090000_client_success_multi_tenant_hardening.sql` por incompatibilidade de tipo de dados SQL (SQLSTATE 42804: `commercial_opportunities.id` `text` vs `client_expansion_recommendations.commercial_opportunity_id` `uuid`).
-  - **Ação Segura Executada**: Nenhum procedimento destrutivo ou alteração de migration aplicada foi realizado. O projeto temporário foi mantido ativo para inspecção e deliberação do usuário.
+- **Exercício Real de Restauração Isolada e Reconstrução Limpa**:
+  - **Auditoria de Pré-Voo**: Confirmado 0 linhas em `client_expansion_recommendations`, `commercial_opportunities` e `commercial_proposals` na homologação ativa (`fifbtwbndutbvwnbzgtz`).
+  - **Correção da Migration Histórica de Fundação**: `20260925070000_client_success_foundation.sql` atualizou `commercial_opportunity_id` e `commercial_proposal_id` para `text`.
+  - **Nova Migration Forward-Only**: `20260926150000_client_success_opportunity_proposal_fk_alignment.sql` realiza a conversão segura e reconstrução de FKs compostas.
+  - **Projeto Temporário Isolado Final**: `alastre-platform-restore-test-20260926-v2` (ref `mcnzqmracmcmxbvsttua`, região `sa-east-1`, status `ACTIVE_HEALTHY`). Projeto anterior `dagnthlcpsrrwjpwyxei` excluído com autorização.
+  - **Resultado**: **`GO`** (com ressalvas funcionais operacionais). Todas as 51 migrations foram aplicadas com sucesso absoluto (código 0). RTO de reconstrução de banco virgem: 48 segundos.
 
 - **Erradicação de Vulnerabilidades em Dependências de Produção**:
   - `npm audit --omit=dev`: **0 vulnerabilidades** em dependências de tempo de execução de produção.
@@ -264,11 +265,11 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Cabeçalho de controle de cache `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`.
 
 - **Suíte de Validação Proporcional**:
-  - `npm test`: **404/404 testes passando (100% sucesso)**, incluindo suíte de observabilidade `tests/monitoring-and-health.test.ts`.
+  - `npm test`: **404/404 testes passando (100% sucesso)**, incluindo suíte de observabilidade `tests/monitoring-and-health.test.ts`. Testes focados dos Módulos 02, 07 e Health Route: 65/65 passando.
   - TypeScript (`npx tsc --noEmit`): **0 erros de compilação**.
   - ESLint (`npx eslint`): **0 erros** nos arquivos alterados.
   - Build de Produção (`npx vinext build`): Concluído com sucesso (5 ambientes compilados).
-  - Decision: **`NO-GO`** (devido à pendência de alinhamento de tipo de dados na migration 43 para reconstrução limpa a partir do zero).
+  - Decisão Final: **`GO`** (com ressalvas funcionais mantidas: `ALASTRE_WRITE_MODE=disabled` e provedor Google em `pending_provider_approval`).
 
 
 
