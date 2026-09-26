@@ -84,14 +84,20 @@ export function sanitizeLogData(data: unknown): unknown {
   return sanitized;
 }
 
+const SAFE_CORRELATION_ID_REGEX = /^[a-zA-Z0-9_-]{1,64}$/;
+
 /**
- * Extrai ou gera um ID de correlação para rastreamento de requisições.
+ * Extrai ou gera um ID de correlação seguro para rastreamento de requisições.
+ * Valida o formato e limita o tamanho máximo a 64 caracteres.
  */
 export function getCorrelationId(request?: Request | null): string {
   if (request) {
     const existing = request.headers.get("x-correlation-id") || request.headers.get("x-request-id");
-    if (existing && existing.trim()) {
-      return existing.trim();
+    if (existing) {
+      const trimmed = existing.trim();
+      if (trimmed.length > 0 && trimmed.length <= 64 && SAFE_CORRELATION_ID_REGEX.test(trimmed)) {
+        return trimmed;
+      }
     }
   }
   return randomUUID();

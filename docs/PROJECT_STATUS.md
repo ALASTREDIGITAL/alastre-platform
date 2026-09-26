@@ -239,30 +239,35 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Build de Produção: `npm run build` (`vinext build`) concluído com 0 erros.
   - Supabase Security Advisor / DB Lint: 0 problemas encontrados nas tabelas e políticas do Módulo 09.
 
-## Marco de Entrega — Etapa 11: Segurança, Operação e Preparação de Release (2026-09-25)
+## Marco de Entrega — Etapa 11: Segurança, Operação e Preparação de Release (2026-09-26)
 
-- **Erradicação de Vulnerabilidades em Dependências**:
-  - `npm audit` e `npm audit --omit=dev`: **0 vulnerabilidades** (redução de 24 achados na Etapa 10: 1 crítica, 16 altas, 6 moderadas, 1 baixa para zero).
+- **Erradicação de Vulnerabilidades em Dependências de Produção**:
+  - `npm audit --omit=dev`: **0 vulnerabilidades** em dependências de tempo de execução de produção.
   - Pacotes `next` (16.3.6), `eslint-config-next` (16.3.6), `vite` (8.3.1) e transitivos atualizados mantendo o lockfile e sem quebras em `vinext`.
   - `npm audit fix --force` **não foi utilizado**; atualizações feitas de forma seletiva e segura.
 
-- **Monitoramento e Operação sem Serviço Externo**:
-  - Endpoint de saúde e prontidão: `GET /api/health` em `app/api/health/route.ts` e `lib/monitoring.ts` retornando estado sanitizado sem URLs internas, tokens ou segredos expostos.
-  - Logger operatório e sanitização automatizada (`sanitizeLogData`) cobrindo 10+ padrões sensíveis (senhas, tokens OAuth, JWT, bearer tokens, segredos).
-  - Rastreabilidade por ID de correlação (`x-correlation-id`) gerado ou propagado por requisição.
-  - Tabela de Alertas Operacionais Manuais documentada com frequência, responsável e ação para cada métrica/sintoma.
+- **Remoção de Bypass `server-only` e Proteção Preservada**:
+  - Exclusão total do script `scripts/postinstall-stub-server-only.js` e do hook `"postinstall"` em `package.json`.
+  - O arquivo `node_modules/server-only/index.js` permanece intacto com sua proteção nativa contra importação no cliente.
+  - Testes automatizados executados via hook dinâmico de ESM loader (`tests/helpers/register-loader.js`), que intercepta o specifier em memória durante o `npm test` sem alterar `node_modules` em disco.
+
+- **Endurecimento da Rota de Saúde (`GET /api/health`)**:
+  - Resposta pública mínima (`{ "status": "ok", "timestamp", "version": "0.1.0" }`), sem dados de infraestrutura, ambiente, banco, `write_mode` ou provedores.
+  - Diagnóstico detalhado de prontidão (`GET /api/health?detail=true`) restrito a atores autenticados com papéis de liderança (`owner`, `admin`, `operations_lead`), com retorno `401 Unauthorized` ou `403 Forbidden` quando não autorizado.
+  - Validação de Correlation ID limitando o tamanho máximo em 64 caracteres e sanitizando caracteres inválidos/XSS.
+  - Cabeçalho de controle de cache `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`.
 
 - **Backup, Restauração e Resposta a Incidentes**:
   - Verificação somente leitura confirmando Point-in-Time Recovery (PITR) e backups físicos diários no Supabase Homologação (`fifbtwbndutbvwnbzgtz`).
-  - Runbook operacional completo em `docs/modules/11-security-operations-and-release-preparation.md` estabelecendo procedimento isolado em projeto de testes, validações pós-restauração (50 migrations, RLS, Foreign Keys compostas `(agency_id, client_id)`), RPO (< 1h, PITR < 5s) e RTO (< 2h).
+  - Runbook operacional completo em `docs/modules/11-security-operations-and-release-preparation.md` estabelecendo procedimento isolado em projeto de testes, validações pós-restauração (50 migrations, RLS, Foreign Keys compostas `(agency_id, client_id)`), RPO (< 5 min) e RTO (< 30 min).
   - Exercício de restauração física real mantido como **Pendência de Release** aguardando autorização do usuário.
 
-- **Suíte de Validação**:
-  - `npm test`: 394/394 testes passando (100% sucesso), incluindo a nova suíte de testes de monitoramento `tests/monitoring-and-health.test.ts`.
-  - TypeScript (`npx tsc --noEmit`): 0 erros de compilação.
-  - ESLint (`npx eslint`): 0 erros nos arquivos alterados.
+- **Suíte de Validação Proporcional**:
+  - `npm test`: **404/404 testes passando (100% sucesso)**, incluindo suíte endurecida de observabilidade `tests/monitoring-and-health.test.ts`.
+  - TypeScript (`npx tsc --noEmit`): **0 erros de compilação**.
+  - ESLint (`npx eslint`): **0 erros** nos arquivos alterados.
   - Build de Produção (`npx vinext build`): Concluído com sucesso (5 ambientes compilados).
-  - Supabase Security Advisor / DB Lint: 0 problemas encontrados nas tabelas e políticas do projeto.
+  - Decision: **`GO COM RESSALVAS`**.
 
 
 
