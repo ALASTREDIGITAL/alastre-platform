@@ -241,6 +241,12 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
 
 ## Marco de Entrega — Etapa 11: Segurança, Operação e Preparação de Release (2026-09-26)
 
+- **Exercício Real de Restauração Isolada (Supabase PITR/Restore)**:
+  - **Projeto Isolado Criado**: `alastre-platform-restore-test-20260926` (ref `dagnthlcpsrrwjpwyxei`, região `sa-east-1`, status `ACTIVE_HEALTHY`).
+  - **Resultado**: **`NO-GO`**.
+  - **Causa Raiz Identificada**: A aplicação das migrations de fundação via `supabase db push` foi interrompida na migration `20260925090000_client_success_multi_tenant_hardening.sql` por incompatibilidade de tipo de dados SQL (SQLSTATE 42804: `commercial_opportunities.id` `text` vs `client_expansion_recommendations.commercial_opportunity_id` `uuid`).
+  - **Ação Segura Executada**: Nenhum procedimento destrutivo ou alteração de migration aplicada foi realizado. O projeto temporário foi mantido ativo para inspecção e deliberação do usuário.
+
 - **Erradicação de Vulnerabilidades em Dependências de Produção**:
   - `npm audit --omit=dev`: **0 vulnerabilidades** em dependências de tempo de execução de produção.
   - Pacotes `next` (16.3.6), `eslint-config-next` (16.3.6), `vite` (8.3.1) e transitivos atualizados mantendo o lockfile e sem quebras em `vinext`.
@@ -257,17 +263,12 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Validação de Correlation ID limitando o tamanho máximo em 64 caracteres e sanitizando caracteres inválidos/XSS.
   - Cabeçalho de controle de cache `Cache-Control: no-store, no-cache, must-revalidate, proxy-revalidate`.
 
-- **Backup, Restauração e Resposta a Incidentes**:
-  - Verificação somente leitura confirmando Point-in-Time Recovery (PITR) e backups físicos diários no Supabase Homologação (`fifbtwbndutbvwnbzgtz`).
-  - Runbook operacional completo em `docs/modules/11-security-operations-and-release-preparation.md` estabelecendo procedimento isolado em projeto de testes, validações pós-restauração (50 migrations, RLS, Foreign Keys compostas `(agency_id, client_id)`), RPO (< 5 min) e RTO (< 30 min).
-  - Exercício de restauração física real mantido como **Pendência de Release** aguardando autorização do usuário.
-
 - **Suíte de Validação Proporcional**:
-  - `npm test`: **404/404 testes passando (100% sucesso)**, incluindo suíte endurecida de observabilidade `tests/monitoring-and-health.test.ts`.
+  - `npm test`: **404/404 testes passando (100% sucesso)**, incluindo suíte de observabilidade `tests/monitoring-and-health.test.ts`.
   - TypeScript (`npx tsc --noEmit`): **0 erros de compilação**.
   - ESLint (`npx eslint`): **0 erros** nos arquivos alterados.
   - Build de Produção (`npx vinext build`): Concluído com sucesso (5 ambientes compilados).
-  - Decision: **`GO COM RESSALVAS`**.
+  - Decision: **`NO-GO`** (devido à pendência de alinhamento de tipo de dados na migration 43 para reconstrução limpa a partir do zero).
 
 
 
