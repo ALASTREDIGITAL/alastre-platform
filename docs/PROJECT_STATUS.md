@@ -239,6 +239,32 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
   - Build de Produção: `npm run build` (`vinext build`) concluído com 0 erros.
   - Supabase Security Advisor / DB Lint: 0 problemas encontrados nas tabelas e políticas do Módulo 09.
 
+## Marco de Entrega — Etapa 11: Segurança, Operação e Preparação de Release (2026-09-25)
+
+- **Erradicação de Vulnerabilidades em Dependências**:
+  - `npm audit` e `npm audit --omit=dev`: **0 vulnerabilidades** (redução de 24 achados na Etapa 10: 1 crítica, 16 altas, 6 moderadas, 1 baixa para zero).
+  - Pacotes `next` (16.3.6), `eslint-config-next` (16.3.6), `vite` (8.3.1) e transitivos atualizados mantendo o lockfile e sem quebras em `vinext`.
+  - `npm audit fix --force` **não foi utilizado**; atualizações feitas de forma seletiva e segura.
+
+- **Monitoramento e Operação sem Serviço Externo**:
+  - Endpoint de saúde e prontidão: `GET /api/health` em `app/api/health/route.ts` e `lib/monitoring.ts` retornando estado sanitizado sem URLs internas, tokens ou segredos expostos.
+  - Logger operatório e sanitização automatizada (`sanitizeLogData`) cobrindo 10+ padrões sensíveis (senhas, tokens OAuth, JWT, bearer tokens, segredos).
+  - Rastreabilidade por ID de correlação (`x-correlation-id`) gerado ou propagado por requisição.
+  - Tabela de Alertas Operacionais Manuais documentada com frequência, responsável e ação para cada métrica/sintoma.
+
+- **Backup, Restauração e Resposta a Incidentes**:
+  - Verificação somente leitura confirmando Point-in-Time Recovery (PITR) e backups físicos diários no Supabase Homologação (`fifbtwbndutbvwnbzgtz`).
+  - Runbook operacional completo em `docs/modules/11-security-operations-and-release-preparation.md` estabelecendo procedimento isolado em projeto de testes, validações pós-restauração (50 migrations, RLS, Foreign Keys compostas `(agency_id, client_id)`), RPO (< 1h, PITR < 5s) e RTO (< 2h).
+  - Exercício de restauração física real mantido como **Pendência de Release** aguardando autorização do usuário.
+
+- **Suíte de Validação**:
+  - `npm test`: 394/394 testes passando (100% sucesso), incluindo a nova suíte de testes de monitoramento `tests/monitoring-and-health.test.ts`.
+  - TypeScript (`npx tsc --noEmit`): 0 erros de compilação.
+  - ESLint (`npx eslint`): 0 erros nos arquivos alterados.
+  - Build de Produção (`npx vinext build`): Concluído com sucesso (5 ambientes compilados).
+  - Supabase Security Advisor / DB Lint: 0 problemas encontrados nas tabelas e políticas do projeto.
+
+
 
 
 
