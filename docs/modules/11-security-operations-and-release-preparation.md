@@ -4,10 +4,10 @@
 
 **Decisão**: **GO** (com ressalvas funcionais operacionais)
 
-- **Justificativa**: Após a autorização excepcional do usuário, realizamos a correção controlada das migrations de fundação (`20260925070000_client_success_foundation.sql`), alinhando os tipos das colunas de referência `commercial_opportunity_id` e `commercial_proposal_id` de `uuid` para `text`, em estrita conformidade com a chave primária de `commercial_opportunities` (Módulo 02). Foi criada a nova migration forward-only `20260926150000_client_success_opportunity_proposal_fk_alignment.sql` para tratar bancos existentes com conversão segura e reconstrução de FKs compostas. Em seguida, o projeto temporário com falha (`dagnthlcpsrrwjpwyxei`) foi excluído e um novo projeto Supabase temporário e isolado foi criado (`alastre-platform-restore-test-20260926-v2`, ref `mcnzqmracmcmxbvsttua`). A esteira completa de 51 migrations foi aplicada com **código 0 ("Finished supabase db push")**, confirmando a total capacidade de reconstrução limpa de um ambiente do zero.
-- **Diferenciação Técnica entre PITR e Reconstrução Limpa**:
-  - **PITR (Point-in-Time Recovery / Restauração Física)**: Restauração de snapshots físicos contínuos baseados em WAL (Write-Ahead Logging), disponível nativamente no Supabase Console / Enterprise PITR para a instância de produção/homologação ativa.
-  - **Reconstrução Limpa (Bootstrap Virgem)**: Validação da integridade de todo o encadeamento de arquivos de migration versionados (`supabase db push`) em um novo banco de dados limpo, garantindo que o esquema, RLS, FKs compostas e RPCs possam ser instanciados do zero sem depender de estado pré-existente.
+- **Justificativa**: Após a autorização excepcional do usuário, realizamos a correção controlada das migrations de fundação (`20260925070000_client_success_foundation.sql`), alinhando os tipos das colunas de referência `commercial_opportunity_id` e `commercial_proposal_id` de `uuid` para `text`, em estrita conformidade com a chave primária de `commercial_opportunities` (Módulo 02). Foi criada a nova migration forward-only `20260926150000_client_success_opportunity_proposal_fk_alignment.sql` para tratar bancos existentes com conversão segura e reconstrução de FKs compostas. Em seguida, o projeto temporário com falha (`dagnthlcpsrrwjpwyxei`) foi excluído e um novo projeto Supabase temporário e isolado foi criado (`alastre-platform-restore-test-20260926-v2`, ref `mcnzqmracmcmxbvsttua`). A esteira completa de 51 migrations foi aplicada com **código 0 ("Finished supabase db push")**, confirmando a total capacidade de **reconstrução limpa por migrations** de um ambiente a partir do zero.
+- **Diferenciação Técnica e Escopo de Teste**:
+  - **Reconstrução Limpa por Migrations (Concluída com Sucesso)**: Validação da integridade de todo o encadeamento de arquivos de migration versionados (`supabase db push`) em um novo banco de dados limpo, garantindo que o esquema, RLS, FKs compostas e RPCs possam ser instanciados do zero sem depender de estado pré-existente. A aprovação técnica de release é concedida com base neste bootstrap limpo, segurança, testes e build.
+  - **Restauração Real de Dados por Backup / PITR (Validação Operacional Futura)**: A restauração física de snapshots contínuos baseados em WAL (Write-Ahead Logging) ou dumps de dados reais permanece como uma validação operacional futura, a ser executada quando houver volume de dados relevantes em produção/homologação e método oficialmente suportado.
 - **Pendências Bloqueantes de Release**: **Nenhuma**. Todos os bloqueios técnicos e de banco foram resolvidos.
 - **Ressalvas Funcionais Mantidas**:
   1. A trava global de escrita em provedores externos permanece desativada (`ALASTRE_WRITE_MODE=disabled`).
@@ -15,9 +15,9 @@
 
 ---
 
-## 2. Exercício Real de Restauração Isolada e Reconstrução Limpa (Relatório Técnico)
+## 2. Reconstrução Limpa por Migrations em Ambiente Isolado (Relatório Técnico)
 
-### 2.1 Metadados do Exercício Resolvido
+### 2.1 Metadados da Reconstrução Isolada
 - **Data e Hora de Execução**: 26/09/2026 às 15:08 BRT (18:08 UTC).
 - **Ambiente de Destino Isolado Final**:
   - Nome do Projeto: `alastre-platform-restore-test-20260926-v2`
@@ -30,7 +30,7 @@
 
 ### 2.2 Auditoria Pré-Voo e Resolução da Incompatibilidade de Schema
 - **Auditoria de Dados de Pré-Voo (Homologação Ativa `fifbtwbndutbvwnbzgtz`)**:
-  - Script executado: `scratch/audit-homologation-admin.ts` via `service_role`.
+  - Script executado via `service_role`.
   - Registros encontrados em `client_expansion_recommendations`, `commercial_opportunities` e `commercial_proposals`: **0 linhas**.
   - Risco de descorrelacionamento de dados reais: **0% (100% seguro)**.
 - **Correção da Migration Histórica de Fundação**:
@@ -40,11 +40,11 @@
 - **Resultado da Esteira de Migrations (`db push`)**:
   - Todas as 51 migrations (de `20260904122512_marco_1_foundation.sql` até `20260926150000_client_success_opportunity_proposal_fk_alignment.sql`) foram aplicadas com sucesso (código 0).
 
-### 2.3 RPO e RTO Observados
+### 2.3 RPO e RTO Observados (Reconstrução Virgem)
 - **Tempo de Provisionamento do Projeto Isolado**: **24 segundos** (`supabase projects create`).
 - **Tempo de Aplicação de 51 Migrations no `db push`**: **24 segundos**.
 - **RPO (Recovery Point Objective)**: < 5 minutos (garantido pela retenção WAL/PITR no projeto principal).
-- **RTO (Recovery Target Objective)**: **48 segundos** para recomposição completa da infraestrutura de banco virgem a partir do repositório de código.
+- **RTO (Recovery Target Objective de Reconstrução Virgem)**: **48 segundos** para recomposição completa da infraestrutura de banco limpo a partir do repositório de código.
 
 ---
 

@@ -241,11 +241,12 @@ OAuth, callback, refresh, discovery read-only, seleção de Perfil da Empresa, b
 
 ## Marco de Entrega — Etapa 11: Segurança, Operação e Preparação de Release (2026-09-26)
 
-- **Exercício Real de Restauração Isolada e Reconstrução Limpa**:
+- **Reconstrução Limpa por Migrations em Ambiente Isolado**:
   - **Auditoria de Pré-Voo**: Confirmado 0 linhas em `client_expansion_recommendations`, `commercial_opportunities` e `commercial_proposals` na homologação ativa (`fifbtwbndutbvwnbzgtz`).
   - **Correção da Migration Histórica de Fundação**: `20260925070000_client_success_foundation.sql` atualizou `commercial_opportunity_id` e `commercial_proposal_id` para `text`.
   - **Nova Migration Forward-Only**: `20260926150000_client_success_opportunity_proposal_fk_alignment.sql` realiza a conversão segura e reconstrução de FKs compostas.
   - **Projeto Temporário Isolado Final**: `alastre-platform-restore-test-20260926-v2` (ref `mcnzqmracmcmxbvsttua`, região `sa-east-1`, status `ACTIVE_HEALTHY`). Projeto anterior `dagnthlcpsrrwjpwyxei` excluído com autorização.
+  - **Escopo do Teste**: Validação de bootstrap limpo a partir do zero via `npx supabase db push`. A restauração de dados por backup/PITR permanece como validação operacional futura a ser executada quando houver volume relevante de dados.
   - **Resultado**: **`GO`** (com ressalvas funcionais operacionais). Todas as 51 migrations foram aplicadas com sucesso absoluto (código 0). RTO de reconstrução de banco virgem: 48 segundos.
 
 - **Erradicação de Vulnerabilidades em Dependências de Produção**:
